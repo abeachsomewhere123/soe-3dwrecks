@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shipwreck Viewer</title>
+    <meta name="theme-color" content="#001122">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.179.1/+esm",
+            "belowjs": "https://cdn.jsdelivr.net/npm/belowjs@1.8.0/dist/belowjs.js"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/belowjs@1.8.0/dist/belowjs.css">
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100%;
+            background: #001122;
+            color: #cfe4f2;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        #viewer { position: fixed; inset: 0; z-index: 0; }
+
+        #status {
+            position: fixed;
+            inset: 0;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.7rem;
+            padding: 2rem;
+            text-align: center;
+            background: #001122;
+        }
+
+        #status[hidden] { display: none; }
+
+        #status h1 {
+            margin: 0;
+            font-size: 1.05rem;
+            font-weight: 500;
+            letter-spacing: 0.02em;
+        }
+
+        #status p {
+            margin: 0;
+            max-width: 38ch;
+            font-size: 0.85rem;
+            line-height: 1.55;
+            color: #7fa3ba;
+        }
+
+        #status code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 0.8rem;
+            color: #cfe4f2;
+        }
+    </style>
+</head>
+<body>
+    <div id="viewer"></div>
+    <div id="status"><h1>Loading models</h1></div>
+
+    <script type="module">
+        // ────────────────────────────────────────────────────────────────
+        // The address of your Cloudflare Worker — the thing that reports
+        // what's in the bucket. Models themselves come from
+        // models.abeachsomewhere.net; you don't set that here, the Worker
+        // fills it in.
+        //
+        // If you skip giving the Worker its own subdomain during setup,
+        // replace this with the free workers.dev address instead.
+        const MODELS_API = 'https://shipwreck-models.abeachsomewhere.workers.dev';
+        // ────────────────────────────────────────────────────────────────
+
+        import { ModelViewer } from 'belowjs';
+
+        const statusEl = document.getElementById('status');
+
+        function showStatus(heading, detail) {
+            statusEl.innerHTML = '';
+            const h = document.createElement('h1');
+            h.textContent = heading;
+            statusEl.appendChild(h);
+            if (detail) {
+                const p = document.createElement('p');
+                p.innerHTML = detail;
+                statusEl.appendChild(p);
+            }
+            statusEl.hidden = false;
+        }
+
+        async function start() {
+            let data;
+            try {
+                const res = await fetch(MODELS_API, { cache: 'no-cache' });
+                if (!res.ok) throw new Error(`the model list returned ${res.status}`);
+                data = await res.json();
+            } catch (err) {
+                console.error(err);
+                showStatus(
+                    'Could not reach the model list',
+                    'Open <code>models-api.abeachsomewhere.net</code> in a browser tab. If it does not respond, the Worker is not deployed or its subdomain is not connected yet. Details are in the browser console.'
+                );
+                return;
+            }
+
+            if (data.error) {
+                showStatus('The model list reported a problem', data.error);
+                return;
+            }
+
+            const models = data.models || {};
+            const keys = Object.keys(models);
+
+            if (keys.length === 0) {
+                showStatus(
+                    'No models yet',
+                    'Upload a <code>.glb</code> file to your R2 bucket and refresh this page. The filename becomes the name shown here.'
+                );
+                return;
+            }
+
+            const viewer = new ModelViewer(document.getElementById('viewer'), {
+                enableVR: true,
+                showInfo: true,
+                models: models,
+                enableVRComfortGlyph: true,
+                enableFullscreen: true,
+                enableScreenshot: true,
+                autoLoadFirst: false,
+                viewerConfig: {
+                    scene: { background: '#001122' }
+                }
+            });
+
+            // Share a link to one model: yoursite.netlify.app/?model=hnlms-k-xi-1946
+            const requested = new URLSearchParams(location.search).get('model');
+            const initial = requested && models[requested] ? requested : keys[0];
+
+            statusEl.hidden = true;
+            setTimeout(() => viewer.loadModel(initial), 100);
+        }
+
+        start();
+    </script>
+</body>
+</html>
