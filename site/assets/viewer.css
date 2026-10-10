@@ -1,0 +1,14 @@
+/* Phone-sized screens, either way up: keep the wreck clear of the UI. */
+@media (max-width: 600px), (max-height: 500px) {
+    /* Title only, smaller. The how-to lines take a third of the screen. */
+    .info-panel { padding: 10px 14px !important; }
+    .info-panel__title { font-size: 0.85rem !important; margin: 0 !important; }
+    .info-panel__controls { display: none !important; }
+
+    /* Phone VR needs a Cardboard-style viewer; hide the button and the comfort
+       icon. The VR headset link from the front page still works: its prompt
+       clicks the hidden button. */
+    #VRButton,
+    .vr-comfort-circle,
+    .vr-comfort-glyph { display: none !important; }
+}

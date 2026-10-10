@@ -18,6 +18,7 @@
     }
     </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/belowjs@1.8.0/dist/belowjs.css">
+    <link rel="stylesheet" href="/assets/viewer.css">
 
     <style>
         html, body {
@@ -93,6 +94,7 @@
 
         import { ModelViewer } from 'belowjs';
         import { addBackLink, showXrPrompt } from '/assets/xr-prompt.js';
+        import { fitStartViewToScreen } from '/assets/fit-view.js';
         import { placeArModel } from '/assets/xr-start.js';
 
         const statusEl = document.getElementById('status');
@@ -186,6 +188,7 @@
             }).observe(titleEl, { childList: true, characterData: true, subtree: true });
 
             placeArModel(viewer);
+            fitStartViewToScreen(viewer);
             addBackLink();
             showXrPrompt(viewer, params.get('mode'));
 
