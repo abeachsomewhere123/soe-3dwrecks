@@ -1437,11 +1437,18 @@
         <div class="panel-row">
             <label>Frame</label>
             <select class="shelf-select" id="aspectSelect" title="Aspect Ratio">
-                <option value="16:9">16:9 (H)</option>
-                <option value="9:16">9:16 (V)</option>
-                <option value="4:3">4:3 (H)</option>
-                <option value="3:4">3:4 (V)</option>
-                <option value="1:1">1:1</option>
+                <optgroup label="Landscape">
+                    <option value="16:9">16:9 (H)</option>
+                    <option value="4:3">4:3 (H)</option>
+                </optgroup>
+                <optgroup label="Portrait">
+                    <option value="9:16">9:16 Reels/Stories</option>
+                    <option value="4:5">4:5 Instagram post</option>
+                    <option value="3:4">3:4 (V)</option>
+                </optgroup>
+                <optgroup label="Square">
+                    <option value="1:1">1:1</option>
+                </optgroup>
                 <option value="none">None</option>
             </select>
         </div>
