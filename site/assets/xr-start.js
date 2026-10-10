@@ -68,6 +68,8 @@ export function placeArModel(viewer) {
         }
     };
 
-    viewer.on('ar-session-start', place);
+    // ModelViewer doesn't pass this event on in BelowJS 1.8.0; its inner
+    // BelowViewer is the one that fires it.
+    viewer.belowViewer.on('ar-session-start', place);
     viewer.on('modelLoaded', place); // switching wrecks mid-session
 }
