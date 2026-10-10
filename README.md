@@ -11,6 +11,7 @@
 
 | Page | What it does |
 | --- | --- |
+| [`/ar/`](https://3dwrecks.southernoceanexploration.com/ar/) | AR viewer for the same bucket models, scaled to 5% for tabletop viewing. Needs a WebXR AR device (Quest, Android Chrome) |
 | [`/tools/position/`](https://3dwrecks.southernoceanexploration.com/tools/position/) | Drag & drop a `.glb`, frame it, and copy the `initialPositions` camera snippet for `metadata.json` |
 | [`/tools/animate/`](https://3dwrecks.southernoceanexploration.com/tools/animate/) | Keyframe camera animations and export video |
 
