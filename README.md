@@ -2,24 +2,31 @@
 
 3D shipwreck viewer for https://3dwrecks.southernoceanexploration.com, built on [BelowJS](https://github.com/abeachsomewhere123/belowjs).
 
+| Page | What it is |
+| --- | --- |
+| [`/`](https://3dwrecks.southernoceanexploration.com/) | Front page: a card per wreck with View in browser, VR headset and AR buttons |
+| [`/view/`](https://3dwrecks.southernoceanexploration.com/view/) | The browser/VR viewer. `?model=euro` picks a wreck, `&mode=vr` shows the Enter VR prompt. Old `/?model=` links redirect here |
+| [`/ar/`](https://3dwrecks.southernoceanexploration.com/ar/) | AR viewer for the same bucket models, scaled to 5% for tabletop viewing. `&mode=ar` shows the Start AR prompt. Needs a WebXR AR device (Quest 3, Android Chrome) |
+
 | Folder | What it is | Deploys to |
 | --- | --- | --- |
-| `site/` | The viewer page | Netlify, automatically on push to `main` |
+| `site/` | The front page, viewers and tools | Netlify, automatically on push to `main` |
 | `worker/` | `shipwreck-models` Cloudflare Worker: lists and serves the `.glb` files in the `soeglb` R2 bucket | Cloudflare, with `npx wrangler deploy` from `worker/` |
 
 ## Tools
 
 | Page | What it does |
 | --- | --- |
-| [`/ar/`](https://3dwrecks.southernoceanexploration.com/ar/) | AR viewer for the same bucket models, scaled to 5% for tabletop viewing. Needs a WebXR AR device (Quest, Android Chrome) |
 | [`/tools/position/`](https://3dwrecks.southernoceanexploration.com/tools/position/) | Drag & drop a `.glb`, frame it, and copy the `initialPositions` camera snippet for `metadata.json` |
 | [`/tools/animate/`](https://3dwrecks.southernoceanexploration.com/tools/animate/) | Keyframe camera animations and export video |
 
-Both are copies of the BelowJS examples, pinned to the same BelowJS version as the viewer so captured positions match. Not indexed by search engines.
+The tools are copies of the BelowJS examples, pinned to the same BelowJS version as the viewer so captured positions match. Not indexed by search engines.
 
 ## Adding a model
 
 Upload a `.glb` to the `soeglb` bucket. It appears on the site within a minute, named after the file (`Euro.glb` shows as "Euro"). Credits, camera start positions and ordering go in an optional `metadata.json` in the same bucket.
+
+For a card picture, add `site/thumbnails/<file>.jpg` (e.g. `Euro.jpg`, 800×500). Without one, the card shows the wreck's name on a dark gradient.
 
 Replacing a file under the same name reaches returning visitors within a day.
 
