@@ -1,0 +1,25 @@
+# Deploy with `npx wrangler deploy` from this folder.
+# This file is the source of truth: deploying replaces the Worker's
+# bindings and domains with what is listed here.
+name = "shipwreck-models"
+main = "worker.js"
+compatibility_date = "2026-07-29"
+account_id = "bf3adee8d2b257177102b9f0096a5383"
+
+# Fallback address, referenced in site/index.html.
+workers_dev = true
+
+routes = [
+  { pattern = "models.southernoceanexploration.com", custom_domain = true }
+]
+
+[[r2_buckets]]
+binding = "MODELS"
+bucket_name = "soeglb"
+
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true
