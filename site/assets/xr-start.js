@@ -23,11 +23,12 @@ export function addVrStarts(models) {
 }
 
 // AR: BelowJS puts the model's centre where your head was when AR started.
-// Instead, shrink it to tabletop size and set it down in front of you.
+// Instead, show the browser start view in miniature: the wreck at the AR
+// scale from the page's settings (defaultScale), with your eyes where the
+// browser camera is, scaled down by the same amount and facing the same way.
 // Units are metres, relative to your eyes at the moment AR starts.
-const AR_LENGTH = 1.2;   // longest side of the wreck
-const AR_DISTANCE = 1.4; // from you to the wreck's centre
-const AR_DROP = 0.75;    // from your eyes down to the wreck's base
+const MIN_GAP = 1.5;      // nearest edge of the wreck is at least this far ahead
+const FALLBACK_DROP = 0.75; // wrecks with no desktop start position
 
 export function placeArModel(viewer) {
     const place = () => {
@@ -35,24 +36,36 @@ export function placeArModel(viewer) {
         const group = ar?.modelGroup;
         if (!ar?.isARPresenting || !group || !ar.currentModel) return;
 
-        group.position.set(0, 0, 0);
+        // Set by BelowJS from the model's or the page's defaultScale.
+        const scale = ar.currentModelScale;
+        const desktop = viewer.config.models[viewer.currentModelKey]?.initialPositions?.desktop;
+
         group.rotation.set(0, 0, 0);
-        group.scale.setScalar(1);
+        group.scale.setScalar(scale);
+
+        if (desktop) {
+            const { camera: c, target: t } = desktop;
+            const yaw = Math.atan2(c.x - t.x, c.z - t.z);
+            group.rotation.y = -yaw;
+            const eye = new THREE.Vector3(c.x, c.y, c.z)
+                .multiplyScalar(scale)
+                .applyAxisAngle(new THREE.Vector3(0, 1, 0), -yaw);
+            group.position.copy(eye).negate();
+        } else {
+            group.position.set(0, 0, 0);
+            group.updateMatrixWorld(true);
+            const box = new THREE.Box3().setFromObject(ar.currentModel);
+            if (box.isEmpty()) return;
+            const centre = box.getCenter(new THREE.Vector3());
+            group.position.set(-centre.x, -FALLBACK_DROP - box.min.y, -centre.z);
+        }
+
+        // Slide the wreck straight back if its near edge is within arm's reach.
         group.updateMatrixWorld(true);
         const box = new THREE.Box3().setFromObject(ar.currentModel);
-        if (box.isEmpty()) return;
-        const size = box.getSize(new THREE.Vector3());
-        const centre = box.getCenter(new THREE.Vector3());
-
-        // Same limits as BelowJS's pinch-to-scale, so the first pinch doesn't jump.
-        const scale = Math.min(1, Math.max(0.01, AR_LENGTH / Math.max(size.x, size.z, 0.001)));
-        group.scale.setScalar(scale);
-        group.position.set(
-            -centre.x * scale,
-            -AR_DROP - box.min.y * scale,
-            -AR_DISTANCE - centre.z * scale
-        );
-        ar.currentModelScale = scale;
+        if (!box.isEmpty() && box.max.z > -MIN_GAP) {
+            group.position.z -= box.max.z + MIN_GAP;
+        }
     };
 
     viewer.on('ar-session-start', place);
