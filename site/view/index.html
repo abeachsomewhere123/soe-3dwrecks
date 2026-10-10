@@ -87,6 +87,7 @@
 
         import { ModelViewer } from 'belowjs';
         import { addBackLink, showXrPrompt } from '/assets/xr-prompt.js';
+        import { addVrStarts } from '/assets/xr-start.js';
 
         const statusEl = document.getElementById('status');
 
@@ -133,6 +134,8 @@
                 );
                 return;
             }
+
+            addVrStarts(models);
 
             const viewer = new ModelViewer(document.getElementById('viewer'), {
                 enableVR: true,

@@ -93,6 +93,7 @@
 
         import { ModelViewer } from 'belowjs';
         import { addBackLink, showXrPrompt } from '/assets/xr-prompt.js';
+        import { placeArModel } from '/assets/xr-start.js';
 
         const statusEl = document.getElementById('status');
 
@@ -140,11 +141,6 @@
                 return;
             }
 
-            // Shrink each wreck to tabletop size in AR. 0.05 = 5%.
-            for (const model of Object.values(models)) {
-                model.defaultScale = 0.05;
-            }
-
             const viewer = new ModelViewer(document.getElementById('viewer'), {
                 enableVR: false,
                 enableAR: true,
@@ -189,6 +185,7 @@
                 }
             }).observe(titleEl, { childList: true, characterData: true, subtree: true });
 
+            placeArModel(viewer);
             addBackLink();
             showXrPrompt(viewer, params.get('mode'));
 
