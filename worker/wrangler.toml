@@ -8,6 +8,7 @@ account_id = "bf3adee8d2b257177102b9f0096a5383"
 
 # Fallback address, referenced in site/index.html.
 workers_dev = true
+preview_urls = false
 
 routes = [
   { pattern = "models.southernoceanexploration.com", custom_domain = true }
