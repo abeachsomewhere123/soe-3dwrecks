@@ -157,6 +157,14 @@
             };
             setInfoTitle();
 
+            // BelowJS also sets the tab to "BelowJS – <model>" on every load.
+            const titleEl = document.querySelector('title');
+            new MutationObserver(() => {
+                if (document.title.startsWith('BelowJS')) {
+                    document.title = document.title.replace(/^BelowJS/, 'Southern Ocean Exploration');
+                }
+            }).observe(titleEl, { childList: true, characterData: true, subtree: true });
+
             statusEl.hidden = true;
             setTimeout(() => {
                 setInfoTitle();
