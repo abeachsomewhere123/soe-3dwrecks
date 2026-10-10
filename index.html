@@ -77,13 +77,12 @@
     <script type="module">
         // ────────────────────────────────────────────────────────────────
         // The address of your Cloudflare Worker — the thing that reports
-        // what's in the bucket. Models themselves come from
-        // models.abeachsomewhere.net; you don't set that here, the Worker
-        // fills it in.
+        // what's in the bucket. The Worker also serves the model files from
+        // the same address, so you don't set that here.
         //
-        // If you skip giving the Worker its own subdomain during setup,
-        // replace this with the free workers.dev address instead.
-        const MODELS_API = 'https://shipwreck-models.abeachsomewhere.workers.dev';
+        // Fallback if the custom domain ever stops working:
+        // https://shipwreck-models.abeachsomewhere.workers.dev
+        const MODELS_API = 'https://models.southernoceanexploration.com';
         // ────────────────────────────────────────────────────────────────
 
         import { ModelViewer } from 'belowjs';
