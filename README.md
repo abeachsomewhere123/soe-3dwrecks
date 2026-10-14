@@ -10,7 +10,7 @@
 
 | Folder | What it is | Deploys to |
 | --- | --- | --- |
-| `site/` | The front page, viewers and tools | Netlify, automatically on push to `main` |
+| `site/` | The front page, viewers and tools | Cloudflare Pages project `soe-3dwrecks`, automatically on push to `main` when something under `site/` changes |
 | `worker/` | `shipwreck-models` Cloudflare Worker: lists and serves the `.glb` files in the `soeglb` R2 bucket | Cloudflare, with `npx wrangler deploy` from `worker/` |
 
 ## Tools
