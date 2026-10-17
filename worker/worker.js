@@ -87,8 +87,12 @@ export default {
     const url = new URL(request.url);
 
     // ---- serve a model file straight out of the bucket ----
+    // The model list links to /f/v/<version>/<file>. The version changes
+    // whenever a file is replaced, so browsers fetch the new file instead of
+    // reusing a cached copy. Plain /f/<file> links still work.
     if (SERVE_FILES_FROM_WORKER && url.pathname.startsWith('/f/')) {
-      const key = decodeURIComponent(url.pathname.slice(3));
+      const versioned = url.pathname.match(/^\/f\/v\/[^/]+\/(.+)$/);
+      const key = decodeURIComponent(versioned ? versioned[1] : url.pathname.slice(3));
       let obj;
       try {
         obj = await env.MODELS.get(key, { onlyIf: request.headers });
@@ -108,9 +112,9 @@ export default {
       if (key.toLowerCase().endsWith('.glb')) {
         headers.set('Content-Type', 'model/gltf-binary');
       }
-      // Browsers keep a file for a day, then check its ETag. A replaced model
-      // shows up within a day; an unchanged one costs a 304, not a re-download.
-      headers.set('Cache-Control', 'public, max-age=86400');
+      // A versioned link never changes content, so browsers can keep it.
+      // A plain link is kept for a day, then checked against its ETag.
+      headers.set('Cache-Control', versioned ? 'public, max-age=31536000, immutable' : 'public, max-age=86400');
 
       // onlyIf matched the browser's cached ETag, so there is no body to send.
       if (!('body' in obj)) {
@@ -145,7 +149,9 @@ export default {
       const m = meta[obj.key] || meta[filename] || meta[displayBase] || {};
       return {
         slugBase: displayBase,
-        url: `${base}/${encodePath(obj.key)}`,
+        url: SERVE_FILES_FROM_WORKER
+          ? `${base}/v/${encodeURIComponent(obj.etag.slice(0, 12))}/${encodePath(obj.key)}`
+          : `${base}/${encodePath(obj.key)}`,
         name: m.name || displayBase,
         credit: m.credit || '',
         measurable: typeof m.measurable === 'boolean' ? m.measurable : true,
