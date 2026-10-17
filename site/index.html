@@ -191,10 +191,13 @@
         const statusEl = document.getElementById('status');
 
         // Thumbnails live in site/thumbnails/, named after the model file:
-        // .../f/Euro.glb -> /thumbnails/Euro.jpg
+        // .../f/v/<version>/Euro.glb -> /thumbnails/Euro.jpg?v=<version>
+        // The version changes when the model is replaced, so the picture
+        // reloads with it.
         function thumbnailUrl(modelUrl) {
             const file = decodeURIComponent(modelUrl.slice(modelUrl.lastIndexOf('/') + 1));
-            return '/thumbnails/' + encodeURIComponent(file.replace(/\.glb$/i, '.jpg'));
+            const version = modelUrl.match(/\/f\/v\/([^/]+)\//);
+            return '/thumbnails/' + encodeURIComponent(file.replace(/\.glb$/i, '.jpg')) + (version ? '?v=' + version[1] : '');
         }
 
         async function xrSupport(mode) {
