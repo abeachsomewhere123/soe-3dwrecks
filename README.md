@@ -11,6 +11,7 @@
 | Folder | What it is | Deploys to |
 | --- | --- | --- |
 | `site/` | The front page, viewers and tools | Cloudflare Pages project `soe-3dwrecks`, automatically on push to `main` when something under `site/` changes |
+| `cloudflare/` | `soe-3dwrecks-test` Worker: serves `site/` from the `ar-dev` branch at https://test-3dwrecks.southernoceanexploration.com for AR development | Cloudflare, automatically on push to `ar-dev` (needs the `CLOUDFLARE_API_TOKEN` repo secret) |
 | `worker/` | `shipwreck-models` Cloudflare Worker: lists and serves the `.glb` files in the `soeglb` R2 bucket | Cloudflare, with `npx wrangler deploy` from `worker/` |
 
 ## Tools
