@@ -24,6 +24,8 @@
 | [`/tools/position/`](https://3dwrecks.southernoceanexploration.com/tools/position/) | Drag & drop a `.glb`, frame it, and copy the `initialPositions` camera snippet for `metadata.json` |
 | [`/tools/animate/`](https://3dwrecks.southernoceanexploration.com/tools/animate/) | Keyframe camera animations and export video |
 
+`reel/` (not deployed) makes Instagram dive reels and covers from a model. See [`reel/README.md`](reel/README.md).
+
 The tools are copies of the BelowJS examples, pinned to the same BelowJS version as the viewer so captured positions match. Not indexed by search engines.
 
 ## Adding a model

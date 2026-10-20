@@ -1,0 +1,40 @@
+{
+  "name": "Euro",
+  "model": "https://models.southernoceanexploration.com/f/Euro.glb",
+  "duration": 45,
+  "notes": "Steam tug, 1897. Facts from the Victorian Heritage Register (S247). Coordinates are the model's own (x runs bow -158 to stern -103, y up, the deck faces +z). The boiler is the large drum forward of the engine-room framing, placed from dive reports and the shape of the mesh.",
+  "points": {
+    "boiler": [-127, 24.8, 179.5],
+    "centre": [-129, 24, 177]
+  },
+  "keyframes": [
+    {"t": 0.0,  "pos": [-121, 60, 186],     "look": [-129, 24, 177],     "note": "high above, wreck faint below"},
+    {"t": 5.5,  "pos": [-133, 45, 189],     "look": [-136, 25, 178],     "note": "descending"},
+    {"t": 10.5, "pos": [-155, 31, 190],     "look": [-147, 25, 178],     "note": "arrive at the bow"},
+    {"t": 14.5, "pos": [-148, 27.5, 188],   "look": [-139, 25, 178],     "note": "along the deck side"},
+    {"t": 18.5, "pos": [-136, 27, 187],     "look": [-129, 25, 178.5]},
+    {"t": 22.0, "pos": [-131, 27.5, 186.5], "look": "boiler",            "note": "slow pass round the boiler"},
+    {"t": 26.0, "pos": [-124.5, 27, 186],   "look": "boiler"},
+    {"t": 29.0, "pos": [-120, 27.5, 186.5], "look": [-115, 24.8, 177.5], "note": "engine room framing"},
+    {"t": 32.5, "pos": [-109, 28, 187],     "look": [-111, 24.5, 177]},
+    {"t": 35.5, "pos": [-100, 28, 179],     "look": [-110, 24.5, 176],   "note": "round the stern"},
+    {"t": 38.5, "pos": [-103, 29, 163.5],   "look": [-118, 24, 172.5],   "note": "hull side"},
+    {"t": 45.0, "pos": [-117, 54, 160],     "look": "centre",            "note": "ascend, looking back down"}
+  ],
+  "titles": [
+    {"start": 1.0, "end": 6.3, "y": 360, "lines": [
+      {"text": "EURO", "bold": true, "size": 150, "track": 18, "gap": 22},
+      {"text": "Steam tug  ·  built 1897, Dundee", "size": 42},
+      {"text": "Scuttled 1948  ·  Ships' Graveyard, Bass Strait", "size": 36}
+    ]}
+  ],
+  "labels": [
+    {"text": "THE BOILER", "start": 21.0, "end": 27.0}
+  ],
+  "endcard": {"start": 40.2, "logo": true, "lines": [
+    {"text": "Southern Ocean Exploration", "bold": true, "size": 58, "gap": 26},
+    {"text": "Explore the 3D model", "size": 38, "gap": 8},
+    {"text": "3dwrecks.southernoceanexploration.com", "size": 34}
+  ]},
+  "cover": {"time": 18.7, "kicker": "VIRTUAL DIVE", "title": "EURO", "subtitle": "Steam tug  ·  Ships' Graveyard, Bass Strait"}
+}

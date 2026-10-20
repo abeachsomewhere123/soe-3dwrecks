@@ -1,0 +1,134 @@
+<!doctype html><html><body style="margin:0;background:#0d4560"><script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"}}</script>
+<script type="module">
+// Dive reel renderer. Plain three.js, not BelowJS, so the look here (fog,
+// torch, marine snow) never changes when the viewer does. reel.json holds
+// the wreck's settings; see README.md.
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { fitSeabed } from '/level.js';
+
+const C = await (await fetch('/reel.json')).json();
+const L = C.look;
+const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+r.setSize(C.width, C.height); document.body.appendChild(r.domElement);
+const scene = new THREE.Scene();
+const FOG = new THREE.Color(L.fog);
+scene.fog = new THREE.FogExp2(FOG, L.fogDensity);
+
+// Water: brighter towards the surface, darker below.
+const dome = new THREE.Mesh(new THREE.SphereGeometry(900, 48, 24), new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, fog: false,
+  uniforms: { top: { value: new THREE.Color(L.waterAbove) }, mid: { value: FOG }, bot: { value: new THREE.Color(L.waterBelow) } },
+  vertexShader: 'varying vec3 vd; void main(){ vd=normalize(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+  fragmentShader: 'uniform vec3 top,mid,bot; varying vec3 vd; void main(){ float y=vd.y; vec3 c= y>0.0? mix(mid,top,pow(y,0.8)) : mix(mid,bot,pow(-y,0.6)); gl_FragColor=vec4(c,1.0);\n#include <colorspace_fragment>\n}' }));
+scene.add(dome);
+
+scene.add(new THREE.AmbientLight(new THREE.Color(L.ambient), L.ambientIntensity));
+scene.add(new THREE.HemisphereLight(0xa9d8ee, 0x3a3020, L.hemiIntensity));
+const sun = new THREE.DirectionalLight(0xdff2ff, L.sunIntensity); sun.position.set(-20, 100, 30); scene.add(sun);
+const fill = new THREE.DirectionalLight(0xffffff, L.fillIntensity); fill.position.set(-50, 50, -50); scene.add(fill);
+const torch = new THREE.SpotLight(0xfff1dc, L.torchIntensity, 40, 0.55, 0.7, 1.6); scene.add(torch, torch.target);
+
+// The wreck, levelled so the sand at the edge of the scan lies flat (same fit as /view/).
+const ktx = new KTX2Loader().setTranscoderPath('https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/libs/basis/').detectSupport(r);
+const draco = new DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/libs/draco/');
+const gltf = await new GLTFLoader().setKTX2Loader(ktx).setDRACOLoader(draco).setMeshoptDecoder(MeshoptDecoder).loadAsync('/model.glb');
+const model = gltf.scene; scene.add(model); model.updateMatrixWorld(true);
+const box0 = new THREE.Box3().setFromObject(model); const pivot = box0.getCenter(new THREE.Vector3());
+let level = new THREE.Quaternion(); let wreck = model;
+if (C.level !== false) {
+  const { a, b } = fitSeabed(model);
+  level.setFromUnitVectors(new THREE.Vector3(-a, 1, -b).normalize(), new THREE.Vector3(0, 1, 0));
+  const grp = new THREE.Group(); scene.remove(model); grp.add(model); scene.add(grp);
+  grp.quaternion.copy(level); grp.position.copy(pivot.clone().sub(pivot.clone().applyQuaternion(level)));
+  grp.updateMatrixWorld(true); wreck = grp;
+}
+// Keyframes are written in the model's own coordinates; turn them the same way.
+const lev = (p) => new THREE.Vector3(...p).sub(pivot).applyQuaternion(level).add(pivot);
+
+// Seabed beyond the scan: trace the outline of the scanned area (lowest point
+// in each grid square on the edge), then run sand outwards from it so the
+// scan's own sand meets it without a step.
+{
+  const box = new THREE.Box3().setFromObject(wreck);
+  const N = 96, sx = (box.max.x - box.min.x) / N, sz = (box.max.z - box.min.z) / N;
+  const low = new Float32Array(N * N).fill(Infinity); const v = new THREE.Vector3();
+  wreck.traverse((o) => { const pos = o.isMesh && o.geometry?.attributes?.position; if (!pos) return;
+    const st = Math.max(1, Math.floor(pos.count / 400000));
+    for (let i = 0; i < pos.count; i += st) { v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+      const ix = Math.min(N - 1, Math.floor((v.x - box.min.x) / sx)), iz = Math.min(N - 1, Math.floor((v.z - box.min.z) / sz));
+      const k = iz * N + ix; if (v.y < low[k]) low[k] = v.y; } });
+  const cx = (box.min.x + box.max.x) / 2, cz = (box.min.z + box.max.z) / 2, B = 180;
+  const rim = new Array(B).fill(null);
+  for (let iz = 0; iz < N; iz++) for (let ix = 0; ix < N; ix++) { const y = low[iz * N + ix]; if (y === Infinity) continue;
+    const x = box.min.x + (ix + 0.5) * sx, z = box.min.z + (iz + 0.5) * sz, d = Math.hypot(x - cx, z - cz);
+    const k = Math.floor(((Math.atan2(z - cz, x - cx) + Math.PI) / (2 * Math.PI)) * B) % B;
+    if (!rim[k] || d > rim[k].d) rim[k] = { x, z, y, d }; }
+  const pts = rim.map((p, k) => p || rim[(k + 1) % B] || rim[(k + B - 1) % B]).filter(Boolean);
+  // flatness check: a level scan has its edge near one height
+  const ys = pts.map(p => p.y).sort((m, n) => m - n), y0 = ys[Math.floor(ys.length / 2)];
+  const rings = [0, 0.6, 2, 5, 10, 20, 40, 80, 160, 320], P = [], UV = [], I = [], m = pts.length;
+  rings.forEach((rr) => { const t0 = Math.min(1, rr / 12), t = t0 * t0 * (3 - 2 * t0);
+    pts.forEach((p) => { const dx = (p.x - cx) / p.d, dz = (p.z - cz) / p.d, x = p.x + dx * (rr - sx * 2), z = p.z + dz * (rr - sz * 2);  // starts tucked under the scan edge
+      const y = (p.y - 0.08) * (1 - t) + (y0 - 0.1) * t; P.push(x, y, z); UV.push(x / L.sandTile, z / L.sandTile); }); });
+  for (let k = 0; k < rings.length - 1; k++) for (let i = 0; i < m; i++) { const a0 = k * m + i, a1 = k * m + (i + 1) % m; I.push(a0, a0 + m, a1, a1, a0 + m, a1 + m); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2)); g.setIndex(I); g.computeVertexNormals();
+  const tx = await new THREE.TextureLoader().loadAsync('/sand.jpg'); tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 8;
+  const mat = new THREE.MeshStandardMaterial({ map: tx, color: new THREE.Color(L.sandTint), roughness: 1, metalness: 0, side: THREE.DoubleSide });
+  const seabed = new THREE.Mesh(g, mat); scene.add(seabed); window.seabedMesh = seabed;
+  window.seabedInfo = { edgeHeight: y0, spread: ys[Math.floor(ys.length * 0.95)] - ys[Math.floor(ys.length * 0.05)], points: m };
+}
+
+// Marine snow: soft points that wrap around the camera in a cube and drift down slowly.
+const NP = L.snowCount, BOX = L.snowBox; const base = new Float32Array(NP * 3), drift = new Float32Array(NP * 3);
+let s = 12345; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+for (let i = 0; i < NP; i++) { for (let j = 0; j < 3; j++) base[i * 3 + j] = rnd() * BOX; drift[i * 3] = (rnd() - 0.5) * 0.12; drift[i * 3 + 1] = -0.03 - rnd() * 0.05; drift[i * 3 + 2] = (rnd() - 0.5) * 0.12; }
+const pg = new THREE.BufferGeometry(); const pp = new Float32Array(NP * 3); pg.setAttribute('position', new THREE.BufferAttribute(pp, 3));
+const cv = document.createElement('canvas'); cv.width = cv.height = 64; const cx2 = cv.getContext('2d'); const gr = cx2.createRadialGradient(32, 32, 0, 32, 32, 32);
+gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); cx2.fillStyle = gr; cx2.fillRect(0, 0, 64, 64);
+const pts = new THREE.Points(pg, new THREE.PointsMaterial({ size: L.snowSize, map: new THREE.CanvasTexture(cv), transparent: true, opacity: L.snowOpacity, depthWrite: false, color: 0xd8eef5, sizeAttenuation: true }));
+pts.frustumCulled = false; if (L.snowCount > 0) scene.add(pts);
+
+// Camera path: Hermite curve through the keyframes, timed by their t values, plus a gentle diver sway.
+const named = C.points || {};
+const pt = (p) => (typeof p === 'string' ? named[p] : p);
+const K = C.keyframes.map((k) => ({ t: k.t, p: lev(pt(k.pos)), g: lev(pt(k.look)) }));
+function herm(t, key) {
+  const n = K.length; let i = 0; while (i < n - 2 && t > K[i + 1].t) i++;
+  const t0 = K[i].t, t1 = K[i + 1].t, h = t1 - t0, u = Math.min(1, Math.max(0, (t - t0) / h));
+  const m = (j) => (j === 0 || j === n - 1) ? new THREE.Vector3() : K[j + 1][key].clone().sub(K[j - 1][key]).divideScalar(K[j + 1].t - K[j - 1].t);
+  const h00 = 2 * u ** 3 - 3 * u ** 2 + 1, h10 = u ** 3 - 2 * u ** 2 + u, h01 = -2 * u ** 3 + 3 * u ** 2, h11 = u ** 3 - u ** 2;
+  return K[i][key].clone().multiplyScalar(h00).add(m(i).multiplyScalar(h10 * h)).add(K[i + 1][key].clone().multiplyScalar(h01)).add(m(i + 1).multiplyScalar(h11 * h));
+}
+const cam = new THREE.PerspectiveCamera(L.fov, C.width / C.height, 0.05, 2000);
+window.nframes = Math.round(C.duration * C.fps);
+window.frame = (i) => {
+  const t = (i / C.fps) * (K[K.length - 1].t / C.duration), sw = L.sway;
+  const p = herm(t, 'p').add(new THREE.Vector3(0.10 * Math.sin(t * 0.9), 0.12 * Math.sin(t * 1.7 + 0.4), 0.08 * Math.sin(t * 0.7 + 1.3)).multiplyScalar(sw));
+  const g = herm(t, 'g').add(new THREE.Vector3(0.15 * Math.sin(t * 0.55 + 0.2), 0.1 * Math.sin(t * 0.8), 0.15 * Math.sin(t * 0.45 + 2)).multiplyScalar(sw));
+  cam.position.copy(p); cam.lookAt(g); cam.updateMatrixWorld(); dome.position.copy(p);
+  torch.position.copy(p).add(new THREE.Vector3(0.25, -0.35, 0).applyQuaternion(cam.quaternion)); torch.target.position.copy(g); torch.target.updateMatrixWorld();
+  for (let n = 0; n < NP; n++) for (let j = 0; j < 3; j++) { const c = p.getComponent(j); let x = base[n * 3 + j] + drift[n * 3 + j] * t * 10 - (c - BOX / 2); x = ((x % BOX) + BOX) % BOX; pp[n * 3 + j] = c - BOX / 2 + x; }
+  pg.attributes.position.needsUpdate = true;
+  r.render(scene, cam); return r.domElement.toDataURL('image/jpeg', 0.93);
+};
+// Survey views for picking keyframes: orthographic top-down (model coordinates, unlevelled grid labels added later).
+window.survey = (pos, look, fov) => { const fg = scene.fog; scene.fog = null; cam.fov = fov; cam.updateProjectionMatrix(); cam.position.copy(lev(pos)); cam.lookAt(lev(look)); dome.position.copy(cam.position); pts.visible = false; r.render(scene, cam); scene.fog = fg; pts.visible = true; cam.fov = L.fov; cam.updateProjectionMatrix(); return r.domElement.toDataURL('image/jpeg', 0.9); };
+// Top-down orthographic view in model coordinates (image right = +x, image up = -z) for the survey sheet.
+window.surveyTop = (px) => { const m = 3, x0 = box0.min.x - m, x1 = box0.max.x + m, z0 = box0.min.z - m, z1 = box0.max.z + m;
+  const hw = (x1 - x0) / 2, hh = (z1 - z0) / 2, W0 = r.domElement.width, H0 = r.domElement.height;
+  const oc = new THREE.OrthographicCamera(-hw, hw, hh, -hh, 0.1, 1000); const c = new THREE.Vector3((x0 + x1) / 2, box0.max.y + 50, (z0 + z1) / 2);
+  // drawn un-levelled, so the grid labels are exact model coordinates
+  const q0 = wreck.quaternion.clone(), p0 = wreck.position.clone(); if (wreck !== model) { wreck.quaternion.identity(); wreck.position.set(0, 0, 0); wreck.updateMatrixWorld(true); } window.seabedMesh.visible = false;
+  oc.position.copy(c); oc.up.set(0, 0, -1); oc.lookAt(c.x, c.y - 100, c.z); r.setSize(px, Math.round(px * hh / hw)); pts.visible = false; const fg = scene.fog; scene.fog = null; dome.visible = false;
+  // named points in red, camera keyframes in yellow, so the route can be checked against the wreck
+  const marks = new THREE.Group(); const dot = (p, col, rad) => { const m = new THREE.Mesh(new THREE.SphereGeometry(rad, 12, 8), new THREE.MeshBasicMaterial({ color: col, depthTest: false })); m.position.set(...p); m.renderOrder = 9; marks.add(m); };
+  Object.values(named).forEach((p) => dot(p, 0xff3030, 0.6)); C.keyframes.forEach((k) => dot(pt(k.pos), 0xffd400, 0.45));
+  scene.add(marks); r.render(scene, oc); scene.remove(marks); scene.fog = fg; dome.visible = true; window.seabedMesh.visible = true;
+  wreck.quaternion.copy(q0); wreck.position.copy(p0); wreck.updateMatrixWorld(true); const u = r.domElement.toDataURL('image/jpeg', 0.9); r.setSize(C.width, C.height); pts.visible = true; return { u, x0, x1, z0, z1 }; };
+window.info = { min: box0.min.toArray(), max: box0.max.toArray(), centre: pivot.toArray() };
+window.ready = true;
+</script></body></html>
