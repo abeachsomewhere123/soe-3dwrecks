@@ -96,6 +96,7 @@
         import { addBackLink, showXrPrompt } from '/assets/xr-prompt.js';
         import { fitStartViewToScreen } from '/assets/fit-view.js';
         import { placeArModel } from '/assets/xr-start.js';
+        import { addArTablePlacement } from '/assets/ar-table.js';
 
         const statusEl = document.getElementById('status');
 
@@ -157,7 +158,8 @@
                     ar: {
                         enabled: true,
                         settings: {
-                            enableHandTracking: true,
+                            // Controllers move the wreck (ar-table.js), not hands.
+                            enableHandTracking: false,
                             enableWorldCube: true,
                             defaultScale: 0.05,
                             worldCubeSize: 1000.0,
@@ -188,6 +190,7 @@
             }).observe(titleEl, { childList: true, characterData: true, subtree: true });
 
             placeArModel(viewer);
+            addArTablePlacement(viewer);
             fitStartViewToScreen(viewer);
             addBackLink();
             showXrPrompt(viewer, params.get('mode'));

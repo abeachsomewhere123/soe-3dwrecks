@@ -66,7 +66,7 @@ const COPY = {
     },
     ar: {
         heading: 'Ready for AR',
-        detail: 'Point your device at a clear floor or table, then tap below.',
+        detail: 'Once you’re in, point a controller at a table and pull the trigger to put the wreck on it. The thumbstick turns and resizes it.',
         go: 'Start AR',
         buttonId: 'ARButton',
         unsupported: 'This browser can’t start AR. Try a Quest 3 or Chrome on Android.'

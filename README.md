@@ -6,7 +6,7 @@
 | --- | --- |
 | [`/`](https://3dwrecks.southernoceanexploration.com/) | Front page: a card per wreck with View in browser, VR headset and AR buttons |
 | [`/view/`](https://3dwrecks.southernoceanexploration.com/view/) | The browser/VR viewer. `?model=euro` picks a wreck, `&mode=vr` shows the Enter VR prompt. Old `/?model=` links redirect here |
-| [`/ar/`](https://3dwrecks.southernoceanexploration.com/ar/) | AR viewer for the same bucket models, scaled to 5% for tabletop viewing. `&mode=ar` shows the Start AR prompt. Needs a WebXR AR device (Quest 3, Android Chrome) |
+| [`/ar/`](https://3dwrecks.southernoceanexploration.com/ar/) | AR viewer for the same bucket models. Starts in front of you at 5%; point a controller at a table and pull the trigger to put the wreck on it, sized to fit, then use the thumbstick to turn (left/right) and resize (up/down). Tables come from the headset's room setup (Space Setup on a Quest); without it, the trigger uses any flat surface. `&mode=ar` shows the Start AR prompt. Needs a WebXR AR device (Quest 3, Android Chrome) |
 
 | Folder | What it is | Deploys to |
 | --- | --- | --- |
