@@ -10,7 +10,7 @@
 
 | Folder | What it is | Deploys to |
 | --- | --- | --- |
-| `site/` | The front page, viewers and tools | Cloudflare Pages project `soe-3dwrecks`, automatically on push to `main` when something under `site/` changes. Pushes to `dev` go to https://dev.soe-3dwrecks.pages.dev, which https://test.southernoceanexploration.com/3d-wrecks shows |
+| `site/` | The front page, viewers and tools | Cloudflare Pages project `soe-3dwrecks`, automatically on every push to `main`. (It used to build only when `site/` changed, but Cloudflare left those builds stuck at "queued", so the filter is off.) Pushes to `dev` go to https://dev.soe-3dwrecks.pages.dev, which https://test.southernoceanexploration.com/3d-wrecks shows |
 | `worker/` | `shipwreck-models` Cloudflare Worker: lists and serves the `.glb` files in the `soeglb` R2 bucket | Cloudflare, with `npx wrangler deploy` from `worker/` |
 
 ## Underwater look
