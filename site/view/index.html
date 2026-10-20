@@ -90,6 +90,7 @@
         import { addBackLink, showXrPrompt } from '/assets/xr-prompt.js';
         import { fitStartViewToScreen } from '/assets/fit-view.js';
         import { addVrStarts } from '/assets/xr-start.js';
+        import { addUnderwater } from '/assets/underwater.js';
 
         const statusEl = document.getElementById('status');
 
@@ -173,6 +174,8 @@
             }).observe(titleEl, { childList: true, characterData: true, subtree: true });
 
             fitStartViewToScreen(viewer);
+            // Water, seabed and marine snow. ?water=off shows the bare scan.
+            if (params.get('water') !== 'off') addUnderwater(viewer);
             addBackLink();
             showXrPrompt(viewer, params.get('mode'));
 

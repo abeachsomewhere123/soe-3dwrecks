@@ -10,8 +10,12 @@
 
 | Folder | What it is | Deploys to |
 | --- | --- | --- |
-| `site/` | The front page, viewers and tools | Cloudflare Pages project `soe-3dwrecks`, automatically on push to `main` when something under `site/` changes |
+| `site/` | The front page, viewers and tools | Cloudflare Pages project `soe-3dwrecks`, automatically on push to `main` when something under `site/` changes. Pushes to `dev` go to https://dev.soe-3dwrecks.pages.dev, which https://test.southernoceanexploration.com/3d-wrecks shows |
 | `worker/` | `shipwreck-models` Cloudflare Worker: lists and serves the `.glb` files in the `soeglb` R2 bucket | Cloudflare, with `npx wrangler deploy` from `worker/` |
+
+## Underwater look
+
+`site/assets/underwater.js` adds blue water that fades with distance, a sandy seabed out to the horizon and drifting marine snow to the browser/VR viewer. It finds the seabed height from the edge of each scan, so new models need no settings. Colours, haze and snow are constants at the top of the file. Add `&water=off` to a `/view/` link to see the bare scan.
 
 ## Tools
 

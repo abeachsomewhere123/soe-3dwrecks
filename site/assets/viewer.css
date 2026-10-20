@@ -12,3 +12,14 @@
     .vr-comfort-circle,
     .vr-comfort-glyph { display: none !important; }
 }
+
+/* Darkened corners from underwater.js, as seen through a camera housing. */
+.underwater-vignette {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: radial-gradient(ellipse at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(2, 18, 30, 0.38) 100%);
+}
+
+.underwater-vignette.is-diving { display: none; }
