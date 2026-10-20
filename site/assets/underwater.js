@@ -1,5 +1,6 @@
 // Underwater look for the browser/VR viewer: blue water that fades with
-// distance, a sandy seabed out to the horizon, and drifting marine snow.
+// distance, a sandy seabed out to the horizon, and (in VR only) drifting
+// marine snow.
 //
 // BelowJS has no setting for any of this, so it is added to the BelowJS
 // scene from outside. The model is also levelled so the sand at the edge
@@ -76,7 +77,7 @@ export function addUnderwater(viewer) {
 
         const diving = viewer.diveSystem?.isDiveMode?.() === true;
         seabed.visible = modelLoaded;
-        snow.visible = modelLoaded && !diving;
+        snow.visible = modelLoaded && !diving && renderer.xr.isPresenting;
         vignette.classList.toggle('is-diving', diving);
 
         if (diving) {

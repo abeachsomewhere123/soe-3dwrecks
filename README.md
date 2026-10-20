@@ -15,7 +15,7 @@
 
 ## Underwater look
 
-`site/assets/underwater.js` adds blue water that fades with distance, a sandy seabed out to the horizon and drifting marine snow to the browser/VR viewer. It finds the seabed height from the edge of each scan, so new models need no settings. Colours, haze and snow are constants at the top of the file. Add `&water=off` to a `/view/` link to see the bare scan.
+`site/assets/underwater.js` adds blue water that fades with distance, a sandy seabed out to the horizon to the browser/VR viewer, plus drifting marine snow in VR. It finds the seabed height from the edge of each scan, so new models need no settings. Colours, haze and snow are constants at the top of the file. Add `&water=off` to a `/view/` link to see the bare scan.
 
 ## Tools
 
