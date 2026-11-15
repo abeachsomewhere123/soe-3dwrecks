@@ -526,23 +526,48 @@ function makeGhost(g) {
     const deck = (x) => deckSide + (x > midship
         ? sheerBow * ((x - midship) / (g.bow - midship)) ** 2
         : sheerStern * ((midship - x) / (midship - g.stern)) ** 2);
-    // Underside: the counter sweeps up aft of the sternpost and the forefoot
-    // rounds up into a near plumb stem.
+    // Stern of a single screw steamer: the hull runs aft to a thin
+    // propeller post; aft of it is the open aperture for the propeller, then
+    // the rudder hung on the sternpost, all under the counter, which
+    // overhangs to the round stern. The keel runs on under the aperture as
+    // the sole piece. The forefoot rounds up into a near plumb stem.
+    const aperture = h.aperture ?? 1.5;            // propeller post to sternpost
+    const propPost = sternpost + aperture;
+    const counterBottom = h.counterBottom ?? 3.0;  // underside of the counter above the keel
+    const run = h.run ?? 7;                        // length over which the lower hull fines to the propeller post
     const forefoot = 3.5;
     const bottom = (x) => {
-        if (x < sternpost) return (deck(x) - 1.3) * (1 - Math.sqrt(Math.max(0, 1 - ((sternpost - x) / counter) ** 2)));
+        if (x < sternpost) {
+            const k = (sternpost - x) / (sternpost - g.stern);
+            return counterBottom + (deck(x) - 0.35 - counterBottom) * (1 - Math.sqrt(Math.max(0, 1 - k * k)));
+        }
+        if (x < propPost) return counterBottom;
         if (x > g.bow - forefoot) return deck(x) * (1 - Math.sqrt(Math.max(0, 1 - ((x - (g.bow - forefoot)) / forefoot) ** 2)));
         return 0;
+    };
+    // The lower hull fines away towards the propeller post below the counter.
+    const smooth = (t) => { t = THREE.MathUtils.clamp(t, 0, 1); return t * t * (3 - 2 * t); };
+    const runFactor = (x, y) => {
+        if (x < propPost || x > propPost + run) return 1;
+        const f = 0.04 + 0.96 * smooth((x - propPost) / run);
+        return f + (1 - f) * smooth((y - (counterBottom - 1.2)) / 1.2);
     };
     // Section: rounded bilge low down, wall sided above.
     const section = (eta) => (eta < 0.42 ? Math.pow(1 - Math.pow(1 - eta / 0.42, 2.2), 1 / 2.2) : 1);
 
-    const STATIONS = 80;
+    // Stations: evenly spaced, plus either side of the propeller post so
+    // the aperture has a clean edge.
+    const XS = [];
+    for (let i = 0; i <= 80; i++) XS.push(g.stern + (i / 80) * L);
+    XS.push(propPost - 0.002, propPost + 0.002, sternpost);
+    XS.sort((a, b) => a - b);
+    const STATIONS = XS.length - 1;
     const ROWS = 16;
-    const xAt = (i) => g.stern + (i / STATIONS) * L;
+    const xAt = (i) => XS[i];
     const hullPoint = (x, side, eta) => {
         const yb = bottom(x);
-        return [x, yb + (deck(x) - yb) * eta, side * breadth(x) * section(eta)];
+        const y = yb + (deck(x) - yb) * eta;
+        return [x, y, side * breadth(x) * section(eta) * runFactor(x, y)];
     };
 
     const positions = [];
@@ -729,12 +754,38 @@ function makeGhost(g) {
         }
     }
 
-    // Rudder abaft the sternpost and the propeller disc ahead of it.
+    // Rudder on the sternpost, propeller in the aperture, sole piece below.
     if (h.rudder !== false) {
-        const geo = new THREE.BoxGeometry(1.1, 2.6, 0.14);
-        geo.translate(sternpost - 0.55, 1.45, 0);
+        const rudderLength = h.rudderLength ?? 1.2;
+        const geo = new THREE.BoxGeometry(rudderLength, counterBottom - 0.35, 0.14);
+        geo.translate(sternpost - rudderLength / 2, 0.25 + (counterBottom - 0.35) / 2, 0);
         add(geo);
-        ring(sternpost + 0.6, 1.5, 0, 1.15, 'x');
+        polyline([[sternpost, 0, 0], [sternpost, counterBottom, 0]]);                  // sternpost
+        polyline([[propPost, 0, 0], [propPost, counterBottom, 0]]);                    // propeller post
+        polyline([[sternpost - 0.3, 0, 0], [propPost, 0, 0]]);                         // sole piece
+        const sole = new THREE.BoxGeometry(propPost - sternpost + 0.3, 0.2, 0.2);
+        sole.translate((propPost + sternpost - 0.3) / 2, 0.1, 0);
+        add(sole, false);
+        // Propeller: hub and four blades, filling most of the aperture height.
+        const px = (propPost + sternpost) / 2;
+        const py = counterBottom / 2 + 0.1;
+        const radius = Math.min(1.25, counterBottom / 2 - 0.2);
+        const hub = new THREE.CylinderGeometry(0.22, 0.22, 0.5, 14);
+        hub.rotateZ(Math.PI / 2);
+        hub.translate(px, py, 0);
+        add(hub, false);
+        for (let k = 0; k < 4; k++) {
+            const a = Math.PI / 4 + (k * Math.PI) / 2;
+            const blade = new THREE.CircleGeometry(1, 16);
+            blade.scale(radius * 0.42, 0.28, 1);
+            blade.translate(radius * 0.55, 0, 0);
+            blade.rotateZ(a);
+            blade.rotateY(Math.PI / 2);
+            blade.translate(px, py, 0);
+            add(blade, false);
+            polyline([[px, py, 0], [px, py + Math.sin(a) * radius, Math.cos(a) * radius]]);
+        }
+        ring(px, py, 0, radius, 'x', 32);
     }
 
     const lineGeometry = new THREE.BufferGeometry();
