@@ -80,11 +80,11 @@
         9.0,
         0
       ],
-      "action": "inside",
-      "text": "Step inside an indicative wheelhouse of a steam tug of the 1890s: the master at the wheel, the binnacle with the magnetic compass and its correcting spheres, the engine room telegraph for orders to the engineer, the voice pipe to the engine room, and the chart table. Not drawn from the Euro's plans.",
+      "text": "An indicative wheelhouse of a steam tug of the 1890s: the master at the wheel, the binnacle with the magnetic compass and its correcting spheres, the engine room telegraph for orders to the engineer, the voice pipe to the engine room, and the chart table. To go inside, use Step into the wheelhouse in the panel, or swim in through the door. Not drawn from the Euro's plans.",
       "source": "Indicative reconstruction, after tugs of the period",
       "photo": "/assets/wrecks/euro/wheelhouse.webp",
-      "photoCredit": "Picture rendered from the reconstruction"
+      "photoCredit": "Picture rendered from the reconstruction",
+      "reveal": true
     }
   ],
   "ghost": {

@@ -192,6 +192,8 @@ export function addWreckExtras(viewer) {
         sprite ??= state.markers.find((m) => m.userData.poi.id === poi.id);
         card.show(poi);
         ui.select(poi.id);
+        // Markers on the reconstruction fade it in so there is something to see.
+        if (poi.reveal && blendTarget < 1) blendTarget = 1;
         if (poi.action === 'inside') {
             if (window.matchMedia('(max-width: 640px)').matches) ui.collapse();
             stepInside();
@@ -427,6 +429,7 @@ export function addWreckExtras(viewer) {
                         state.openAt.copy(pose.eye);
                     }
                 } else {
+                    if (poi.reveal && blendTarget < 1) blendTarget = 1;
                     vrCard.show(poi, eye, forward);
                     state.openPoi = poi.id;
                     state.openAt.copy(eye);
