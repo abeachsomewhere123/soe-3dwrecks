@@ -174,3 +174,20 @@
     /* Over the BelowJS buttons until closed, clear of the All wrecks link. */
     .wx-card { left: 10px; right: 10px; top: auto; bottom: 58px; width: auto; max-height: 62%; z-index: 1001; }
 }
+
+.wx-panel__inside {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    padding: 8px 10px;
+    border: 1px solid rgba(255, 211, 107, 0.6);
+    border-radius: 8px;
+    background: rgba(255, 211, 107, 0.12);
+    color: #ffffff;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.wx-panel__inside:hover,
+.wx-panel__inside:focus-visible { background: rgba(255, 211, 107, 0.24); outline: none; }

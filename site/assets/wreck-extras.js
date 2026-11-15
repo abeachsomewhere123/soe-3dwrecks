@@ -100,7 +100,9 @@ export function addWreckExtras(viewer) {
         ui.show(state, {
             onPoi: (poi) => openDesktop(poi),
             onBlend: (value) => { blendTarget = value; blend = value; },
-            hasGhost: !!state.ghost
+            onInside: () => (state?.inside ? stepOutside() : stepInside()),
+            hasGhost: !!state.ghost,
+            hasInside: !!state.ghost?.inside
         });
     });
 
@@ -108,6 +110,7 @@ export function addWreckExtras(viewer) {
         if (state) {
             state.root.removeFromParent();
             setWreckDim(state, 0);
+            for (const m of state.wreckMeshes) m.visible = true;
         }
         state = null;
         blend = blendTarget = 0;
@@ -126,16 +129,19 @@ export function addWreckExtras(viewer) {
         root.name = 'wreck-extras';
         model.add(root);
 
-        const markers = data.pois?.map((poi, i) => {
+        const ghost = data.ghost ? makeGhost(data.ghost) : null;
+        if (ghost) root.add(ghost.group);
+
+        // Markers are in the model's coordinates, or (ship) in the
+        // reconstruction's frame, for features of the reconstruction.
+        const markers = (data.pois || []).filter((poi) => poi.position || (poi.ship && ghost)).map((poi, i) => {
             const sprite = makeMarker(i + 1);
-            sprite.position.fromArray(poi.position);
+            if (poi.position) sprite.position.fromArray(poi.position);
+            else sprite.position.copy(ghost.toModel(poi.ship));
             sprite.userData.poi = { ...poi, number: i + 1, built: poi.built || data.built };
             root.add(sprite);
             return sprite;
-        }) || [];
-
-        const ghost = data.ghost ? makeGhost(data.ghost) : null;
-        if (ghost) root.add(ghost.group);
+        });
 
         // Remember the wreck's own colours so "then" can darken them.
         const materials = new Set();
@@ -147,8 +153,10 @@ export function addWreckExtras(viewer) {
             }
         });
         for (const m of materials) m.userData.extrasBase ??= m.color.clone();
+        const wreckMeshes = [];
+        model.traverse((o) => { if (o.isMesh && !isInside(o, root)) wreckMeshes.push(o); });
 
-        return { model, root, markers, ghost, materials, seabed, data, dwell: null, dwellTime: 0, openPoi: null, openAt: new THREE.Vector3() };
+        return { model, root, markers, ghost, materials, wreckMeshes, seabed, data, dwell: null, dwellTime: 0, openPoi: null, openAt: new THREE.Vector3(), inside: false, savedView: null };
     }
 
     // ── Desktop ─────────────────────────────────────────────────────────
@@ -184,6 +192,11 @@ export function addWreckExtras(viewer) {
         sprite ??= state.markers.find((m) => m.userData.poi.id === poi.id);
         card.show(poi);
         ui.select(poi.id);
+        if (poi.action === 'inside') {
+            if (window.matchMedia('(max-width: 640px)').matches) ui.collapse();
+            stepInside();
+            return;
+        }
         // Phones have room for the card or the list, not both.
         if (window.matchMedia('(max-width: 640px)').matches) ui.collapse();
         // Fly the orbit camera to look at the marker from where it is now,
@@ -202,6 +215,74 @@ export function addWreckExtras(viewer) {
         };
     }
 
+    // ── Stepping into the wheelhouse ───────────────────────────────────
+    //
+    // Brings the reconstruction fully in and puts you on the bridge,
+    // standing aft on the port side. While you are inside, the scanned
+    // wreck (which passes through the reconstruction) and the markers are
+    // hidden. Leave by the button, or just fly or zoom out.
+
+    function insidePose() {
+        const g = state?.ghost;
+        if (!g?.inside) return null;
+        state.model.updateMatrixWorld(true);
+        const toWorld = (p) => g.toModel(p).applyMatrix4(state.model.matrixWorld);
+        return {
+            eye: toWorld(g.inside.eye), look: toWorld(g.inside.look),
+            doorEye: toWorld(g.inside.door.eye), doorLook: toWorld(g.inside.door.look)
+        };
+    }
+
+    function stepInside() {
+        const pose = insidePose();
+        if (!pose) return;
+        blendTarget = blend = 1;
+        ui.setBlend(1);
+        if (renderer.xr.isPresenting) {
+            const camera = below.cameraManager.camera, rig = camera.parent;
+            if (!rig) return;
+            const dir = pose.look.clone().sub(pose.eye);
+            const yaw = Math.atan2(-dir.x, -dir.z);
+            rig.rotation.set(0, yaw, 0);
+            const head = camera.position.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+            rig.position.copy(pose.eye).sub(head);
+            return;
+        }
+        const camera = below.cameraManager.camera;
+        const controls = below.cameraManager.getControls?.();
+        if (!controls?.target) return;
+        if (!state.inside) state.savedView = { cam: camera.position.clone(), target: controls.target.clone() };
+        tween = {
+            t: 0, fromTarget: controls.target.clone(), toTarget: pose.look, fromCam: camera.position.clone(), toCam: pose.eye,
+            viaCam: state.inside ? null : pose.doorEye, viaTarget: pose.doorLook
+        };
+    }
+
+    function stepOutside() {
+        const camera = below.cameraManager.camera;
+        const controls = below.cameraManager.getControls?.();
+        if (!controls?.target || renderer.xr.isPresenting) return;
+        const back = state.savedView || { cam: camera.position.clone().add(new THREE.Vector3(12, 10, 12)), target: controls.target.clone() };
+        tween = { t: 0, fromTarget: controls.target.clone(), toTarget: back.target, fromCam: camera.position.clone(), toCam: back.cam };
+        state.savedView = null;
+    }
+
+    const shipEye = new THREE.Vector3();
+    function updateInside() {
+        const b = state.ghost?.inside?.bounds;
+        let inside = false;
+        if (b && blend > 0.5) {
+            shipEye.copy(eye).applyMatrix4(state.model.matrixWorld.clone().invert());
+            const p = state.ghost.fromModel(shipEye);
+            inside = p.x > b.x0 && p.x < b.x1 && p.y > b.y0 && p.y < b.y1 && Math.abs(p.z) < b.z;
+        }
+        if (inside === state.inside) return;
+        state.inside = inside;
+        for (const m of state.wreckMeshes) m.visible = !inside;
+        for (const m of state.markers) m.visible = !inside;
+        ui.setInside(inside);
+    }
+
     // ── Every frame ─────────────────────────────────────────────────────
 
     const eye = new THREE.Vector3();
@@ -215,6 +296,7 @@ export function addWreckExtras(viewer) {
         const xr = renderer.xr.isPresenting;
         const camera = below.cameraManager.camera;
         headPose(eye, forward);
+        updateInside();
 
         // Then and now.
         if (xr) pollThumbsticks();
@@ -228,10 +310,19 @@ export function addWreckExtras(viewer) {
         // Desktop camera fly-to.
         if (tween && !xr) {
             const controls = below.cameraManager.getControls?.();
-            tween.t = Math.min(1, tween.t + dt / 1.2);
-            const k = tween.t * tween.t * (3 - 2 * tween.t);
-            controls.target.lerpVectors(tween.fromTarget, tween.toTarget, k);
-            below.cameraManager.camera.position.lerpVectors(tween.fromCam, tween.toCam, k);
+            tween.t = Math.min(1, tween.t + dt / (tween.viaCam ? 2.6 : 1.2));
+            const ease = (t) => t * t * (3 - 2 * t);
+            const cam = below.cameraManager.camera.position;
+            if (tween.viaCam) {
+                // Up to the doorway, then in.
+                const first = tween.t < 0.5, k = ease(first ? tween.t * 2 : tween.t * 2 - 1);
+                controls.target.lerpVectors(first ? tween.fromTarget : tween.viaTarget, first ? tween.viaTarget : tween.toTarget, k);
+                cam.lerpVectors(first ? tween.fromCam : tween.viaCam, first ? tween.viaCam : tween.toCam, k);
+            } else {
+                const k = ease(tween.t);
+                controls.target.lerpVectors(tween.fromTarget, tween.toTarget, k);
+                cam.lerpVectors(tween.fromCam, tween.toCam, k);
+            }
             controls.update?.();
             if (tween.t >= 1) tween = null;
         }
@@ -327,6 +418,14 @@ export function addWreckExtras(viewer) {
                 if (state.openPoi === poi.id) {
                     vrCard.hide();
                     state.openPoi = null;
+                } else if (poi.action === 'inside') {
+                    stepInside();
+                    const pose = insidePose();
+                    if (pose) {
+                        vrCard.show(poi, pose.eye, pose.look.clone().sub(pose.eye).normalize());
+                        state.openPoi = poi.id;
+                        state.openAt.copy(pose.eye);
+                    }
                 } else {
                     vrCard.show(poi, eye, forward);
                     state.openPoi = poi.id;
@@ -371,6 +470,9 @@ export function addWreckExtras(viewer) {
         viewer,
         get state() { return state; },
         get blend() { return blend; },
+        stepInside: () => stepInside(),
+        stepOutside: () => stepOutside(),
+        insidePose: () => insidePose(),
         gauge: gauge.mesh,
         vrCard: vrCard.mesh,
         setBlend(value) { blend = blendTarget = value; ui.setBlend(value); },
@@ -703,29 +805,54 @@ function makeGhost(g) {
         }
     }
     let roof = casingTop;
+    let inside = null;
     if (g.wheelhouse) {
-        const w = g.wheelhouse, hw = w.width / 2;
-        box(w.from, w.to, casingTop, w.height, w.width, mats.timber);
-        roof = casingTop + w.height;
-        box(w.from - 0.12, w.to + 0.12, roof, 0.1, w.width + 0.24, mats.paint);
-        // Windows: a row across the front and down each side.
-        const winY = casingTop + w.height * 0.68, winH = w.height * 0.36;
-        const pane = (x, z, rotY, width) => {
-            const geo = new THREE.PlaneGeometry(width, winH);
-            geo.rotateY(rotY);
-            geo.translate(x, winY, z);
-            addMesh(geo, mats.glass, 'given');
+        const w = g.wheelhouse, hw = w.width / 2, floor = casingTop, t = 0.06;
+        const H = w.height;
+        roof = floor + H;
+        const sill = floor + 1.05, head = floor + 1.78;
+        // A wall pierced by a row of windows. Runs along x (sides) or z (front).
+        const windowWall = (fixed, from, to, panes, isFront) => {
+            const len = to - from, mull = 0.09, pane = (len - mull * (panes + 1)) / panes;
+            const piece = (a0, a1, y0, y1) => {
+                const geo = isFront
+                    ? new THREE.BoxGeometry(t, y1 - y0, a1 - a0).translate(fixed, (y0 + y1) / 2, (a0 + a1) / 2)
+                    : new THREE.BoxGeometry(a1 - a0, y1 - y0, t).translate((a0 + a1) / 2, (y0 + y1) / 2, fixed);
+                addMesh(geo, mats.timber);
+            };
+            piece(from, to, floor, sill);
+            piece(from, to, head, roof);
+            for (let k = 0; k <= panes; k++) {
+                const a0 = from + k * (pane + mull);
+                piece(a0, a0 + mull, sill, head);
+                if (k < panes) {
+                    const glass = new THREE.PlaneGeometry(pane, head - sill);
+                    if (isFront) glass.rotateY(Math.PI / 2).translate(fixed, (sill + head) / 2, a0 + mull + pane / 2);
+                    else glass.translate(a0 + mull + pane / 2, (sill + head) / 2, fixed);
+                    addMesh(glass, mats.glass, 'given');
+                }
+            }
         };
-        const across = Math.max(3, Math.floor(w.width / 0.6));
-        for (let k = 0; k < across; k++) pane(w.to + 0.015, -hw + (k + 0.5) * (w.width / across), Math.PI / 2, w.width / across - 0.1);
-        const aft = Math.max(2, Math.floor((w.to - w.from) / 0.7));
-        for (const side of [-1, 1]) {
-            for (let k = 0; k < aft; k++) pane(w.from + (k + 0.5) * ((w.to - w.from) / aft), side * (hw + 0.015), side > 0 ? 0 : Math.PI, (w.to - w.from) / aft - 0.12);
-        }
+        windowWall(w.to - t / 2, -hw, hw, Math.max(3, Math.round(w.width / 0.65)), true);
+        for (const side of [-1, 1]) windowWall(side * (hw - t / 2), w.from, w.to, Math.max(2, Math.round((w.to - w.from) / 0.8)), false);
+        // After wall with a doorway; the door stands open.
+        const door = 0.38, doorTop = floor + 1.95, ax = w.from + t / 2;
+        addMesh(new THREE.BoxGeometry(t, H, hw - door).translate(ax, floor + H / 2, -(hw + door) / 2), mats.timber);
+        addMesh(new THREE.BoxGeometry(t, H, hw - door).translate(ax, floor + H / 2, (hw + door) / 2), mats.timber);
+        addMesh(new THREE.BoxGeometry(t, roof - doorTop, door * 2).translate(ax, (doorTop + roof) / 2, 0), mats.timber);
+        // Hinged on the starboard side of the doorway, swung open aft.
+        addMesh(new THREE.BoxGeometry(0.04, 1.93, door * 2 - 0.04).translate(0, 0, -(door - 0.02))
+            .rotateY(1.4).translate(w.from - 0.03, floor + 0.98, door), mats.timber);
+        // Floor, roof and ceiling.
+        addMesh(new THREE.BoxGeometry(w.to - w.from - 2 * t, 0.05, w.width - 2 * t).translate((w.from + w.to) / 2, floor + 0.025, 0), mats.deck);
+        box(w.from - 0.12, w.to + 0.12, roof, 0.1, w.width + 0.24, mats.paint);
         // Open bridge rail on the roof.
         const r = roof + 0.1 + 0.95, corners = [[w.from, r, -hw], [w.to, r, -hw], [w.to, r, hw], [w.from, r, hw]];
         for (let k = 0; k < 4; k++) bar(corners[k], corners[(k + 1) % 4], 0.025, mats.paint, 6);
         for (const [x, , z] of corners) bar([x, roof + 0.1, z], [x, r, z], 0.025, mats.paint, 6);
+
+        inside = buildBridge({ w, hw, floor, roof, addMesh, bar, mats });
+        inside.bounds = { x0: w.from - 0.2, x1: w.to + 0.2, y0: floor - 0.3, y1: roof + 0.3, z: hw + 0.2 };
     }
 
     // Funnel over the boiler, raked aft, black topped.
@@ -834,8 +961,15 @@ function makeGhost(g) {
     group.visible = false;
 
     const materials = Object.values(mats);
+    // Ship frame (metres, before the twist) to the model's coordinates.
+    const toModel = (p) => new THREE.Vector3().fromArray(warp([...p])).applyMatrix4(ship.matrix);
+    const fromModel = (v) => v.clone().applyMatrix4(ship.matrix.clone().invert());
     return {
         group,
+        toModel,
+        fromModel,
+        inside,
+        frame: { forward, up: shipUp, starboard },
         setOpacity(o) {
             // Blend while fading; fully opaque (and correctly depth sorted)
             // once it is all the way in.
@@ -901,7 +1035,22 @@ function shipMaterials(waterline) {
         bronze: standard({ color: '#a8733f', roughness: 0.4, metalness: 0.55 }),
         glass: standard({ color: '#1a2a33', roughness: 0.08, metalness: 0.4 }),
         boat: standard({ color: '#eeebe2', roughness: 0.5, metalness: 0 }),
-        name: standard({ map: drawName('EURO'), alphaTest: 0.3, roughness: 0.6, metalness: 0 })
+        name: standard({ map: drawName('EURO'), alphaTest: 0.3, roughness: 0.6, metalness: 0 }),
+        darkTimber: standard({ map: texture(timber, 1 / 2, 1 / 2), color: '#7a5a44', roughness: 0.4, metalness: 0 }),
+        iron: standard({ color: '#2c3a30', roughness: 0.5, metalness: 0.35 }),
+        red: standard({ color: '#8e1d18', roughness: 0.45, metalness: 0.2 }),
+        green: standard({ color: '#1f5a2a', roughness: 0.45, metalness: 0.2 }),
+        telegraph: standard({ map: dialTexture('telegraph'), roughness: 0.4, metalness: 0 }),
+        compass: standard({ map: dialTexture('compass'), roughness: 0.4, metalness: 0 }),
+        clock: standard({ map: dialTexture('clock'), roughness: 0.4, metalness: 0 }),
+        chart: standard({ map: dialTexture('chart'), roughness: 0.8, metalness: 0 }),
+        lampGlass: standard({ color: '#fff1c4', emissive: '#ffcf70', emissiveIntensity: 0.9, roughness: 0.2, metalness: 0 }),
+        skin: standard({ color: '#c4927a', roughness: 0.65, metalness: 0 }),
+        wool: standard({ color: '#1d2333', roughness: 0.92, metalness: 0 }),
+        beard: standard({ color: '#9c958c', roughness: 0.95, metalness: 0 }),
+        leather: standard({ color: '#121212', roughness: 0.35, metalness: 0.1 }),
+        shirt: standard({ color: '#f1efe8', roughness: 0.7, metalness: 0 }),
+        eye: standard({ color: '#1a1410', roughness: 0.2, metalness: 0 })
     };
     shipMaterialCache = { waterline, mats };
     return mats;
@@ -1090,6 +1239,261 @@ function drawFunnel() {
     for (let y = 300; y < 1024; y += 150) { c.fillStyle = 'rgba(0,0,0,0.12)'; c.fillRect(0, y, 256, 3); }
     noiseFill(c, 256, 1024, 8, 51);
     return canvas;
+}
+
+// ── The bridge: helm, compass, telegraph, voice pipe and the master ──────
+//
+// Fittings of a steam tug's wheelhouse of the 1890s, placed in the ship's
+// frame (x forward, y up, z to starboard). Indicative, not from the Euro's
+// plans. Returns where a visitor stands and looks.
+function buildBridge({ w, hw, floor, roof, addMesh, bar, mats }) {
+    const at = (geo, x, y, z) => geo.translate(x, y, z);
+    const xw = w.to - 1.0;              // plane of the wheel
+    const yw = floor + 1.05;            // wheel centre height
+    const R = 0.55;                     // wheel radius to the rim
+
+    // Steering column (cast iron) with its gear box, just ahead of the wheel.
+    addMesh(at(new THREE.CylinderGeometry(0.09, 0.13, yw - floor - 0.1, 16), xw + 0.18, floor + (yw - floor - 0.1) / 2, 0), mats.iron);
+    addMesh(at(new THREE.BoxGeometry(0.28, 0.3, 0.26), xw + 0.18, yw, 0), mats.iron);
+    addMesh(at(new THREE.CylinderGeometry(0.035, 0.035, 0.22, 10).rotateZ(Math.PI / 2), xw + 0.06, yw, 0), mats.brass);
+
+    // Spoked wooden wheel with turned handles and a brass hub.
+    addMesh(at(new THREE.TorusGeometry(R, 0.035, 10, 48).rotateY(Math.PI / 2), xw, yw, 0), mats.darkTimber);
+    addMesh(at(new THREE.TorusGeometry(R * 0.55, 0.018, 8, 32).rotateY(Math.PI / 2), xw, yw, 0), mats.brass);
+    addMesh(at(new THREE.CylinderGeometry(0.09, 0.09, 0.12, 16).rotateZ(Math.PI / 2), xw, yw, 0), mats.brass);
+    for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2;
+        const dy = Math.cos(a), dz = Math.sin(a);
+        bar([xw, yw + dy * 0.08, dz * 0.08], [xw, yw + dy * (R + 0.04), dz * (R + 0.04)], 0.018, mats.darkTimber, 6);
+        const handle = new THREE.CapsuleGeometry(0.026, 0.1, 4, 8);
+        handle.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, dy, dz)));
+        addMesh(at(handle, xw, yw + dy * (R + 0.12), dz * (R + 0.12)), mats.darkTimber);
+    }
+
+    // Binnacle: timber pedestal, brass bowl with the compass card under
+    // glass, a hood over the forward half, quadrantal spheres either side
+    // and a Flinders bar ahead.
+    const xb = w.to - 0.42, yb = floor + 1.02;
+    addMesh(at(new THREE.CylinderGeometry(0.15, 0.2, yb - floor, 20), xb, floor + (yb - floor) / 2, 0), mats.darkTimber);
+    addMesh(at(new THREE.CylinderGeometry(0.2, 0.17, 0.12, 24), xb, yb + 0.06, 0), mats.brass);
+    addMesh(at(new THREE.CircleGeometry(0.17, 32).rotateX(-Math.PI / 2).rotateY(-Math.PI / 2), xb, yb + 0.125, 0), mats.compass, 'given');
+    addMesh(at(new THREE.SphereGeometry(0.2, 24, 12, Math.PI / 2, Math.PI, 0, Math.PI / 2), xb, yb + 0.12, 0), mats.brass);
+    addMesh(at(new THREE.CylinderGeometry(0.035, 0.035, 0.14, 10), xb + 0.05, yb + 0.38, 0), mats.brass);   // lamp chimney
+    for (const side of [-1, 1]) {
+        bar([xb, yb + 0.02, side * 0.18], [xb, yb + 0.02, side * 0.32], 0.015, mats.brass, 6);
+        addMesh(at(new THREE.SphereGeometry(0.075, 16, 12), xb, yb + 0.02, side * 0.36), side > 0 ? mats.green : mats.red);
+    }
+    addMesh(at(new THREE.CylinderGeometry(0.04, 0.04, 0.45, 12), xb + 0.22, yb - 0.3, 0), mats.iron);
+
+    // Engine room telegraph on the starboard side.
+    const xt = w.to - 0.55, zt = Math.min(0.95, hw - 0.35), yt = floor + 1.12;
+    addMesh(at(new THREE.CylinderGeometry(0.05, 0.08, yt - floor, 14), xt, floor + (yt - floor) / 2, zt), mats.brass);
+    addMesh(at(new THREE.CylinderGeometry(0.21, 0.21, 0.13, 32).rotateZ(Math.PI / 2), xt, yt + 0.12, zt), mats.brass);
+    addMesh(at(new THREE.CircleGeometry(0.18, 32).rotateY(-Math.PI / 2), xt - 0.067, yt + 0.12, zt), mats.telegraph, 'given');
+    bar([xt - 0.09, yt + 0.12, zt], [xt - 0.09, yt + 0.3, zt + 0.08], 0.014, mats.brass, 6);
+    addMesh(at(new THREE.SphereGeometry(0.03, 10, 8), xt - 0.09, yt + 0.31, zt + 0.085), mats.brass);
+
+    // Voice pipe to the engine room, port side, with a whistle mouthpiece.
+    const xv = w.to - 0.5, zv = -Math.min(0.95, hw - 0.35);
+    const pipe = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(xv, floor, zv), new THREE.Vector3(xv, floor + 1.22, zv),
+        new THREE.Vector3(xv - 0.05, floor + 1.36, zv), new THREE.Vector3(xv - 0.18, floor + 1.41, zv)
+    ]);
+    addMesh(new THREE.TubeGeometry(pipe, 24, 0.035, 10, false), mats.brass);
+    addMesh(at(new THREE.CylinderGeometry(0.045, 0.075, 0.12, 16, 1, true).rotateZ(Math.PI / 2), xv - 0.24, floor + 1.41, zv), mats.brass);
+
+    // Chart table in the after port corner, with a chart on it.
+    const cx0 = w.from + 0.1, cx1 = w.from + 1.0, cz0 = -hw + 0.08, cz1 = -hw + 0.68;
+    addMesh(new THREE.BoxGeometry(cx1 - cx0, 0.9, cz1 - cz0).translate((cx0 + cx1) / 2, floor + 0.45, (cz0 + cz1) / 2), mats.darkTimber);
+    addMesh(new THREE.BoxGeometry(cx1 - cx0 + 0.06, 0.04, cz1 - cz0 + 0.06).translate((cx0 + cx1) / 2, floor + 0.92, (cz0 + cz1) / 2), mats.darkTimber);
+    addMesh(at(new THREE.PlaneGeometry(0.75, 0.5).rotateX(-Math.PI / 2).rotateY(0.08), (cx0 + cx1) / 2, floor + 0.945, (cz0 + cz1) / 2), mats.chart, 'given');
+
+    // Clock and barometer on the after bulkhead.
+    for (const [z, mat] of [[0.75, mats.clock], [1.15, mats.compass]]) {
+        if (z > hw - 0.15) continue;
+        const x = w.from + 0.065, y = floor + 1.72;
+        addMesh(at(new THREE.TorusGeometry(0.12, 0.02, 8, 24).rotateY(Math.PI / 2), x, y, z), mats.brass);
+        addMesh(at(new THREE.CircleGeometry(0.115, 24).rotateY(Math.PI / 2), x + 0.004, y, z), mat, 'given');
+    }
+
+    // Oil lamp hanging from the deckhead.
+    const xl = (w.from + w.to) / 2 - 0.3;
+    bar([xl, roof, 0], [xl, roof - 0.32, 0], 0.008, mats.brass, 4);
+    addMesh(at(new THREE.CylinderGeometry(0.1, 0.07, 0.06, 16), xl, roof - 0.35, 0), mats.brass);
+    addMesh(at(new THREE.CylinderGeometry(0.065, 0.065, 0.16, 16), xl, roof - 0.46, 0), mats.lampGlass);
+    addMesh(at(new THREE.CylinderGeometry(0.075, 0.09, 0.05, 16), xl, roof - 0.565, 0), mats.brass);
+
+    // Ship's bell outside, on the front of the wheelhouse.
+    const bell = new THREE.LatheGeometry([
+        new THREE.Vector2(0.0, 0.2), new THREE.Vector2(0.06, 0.2), new THREE.Vector2(0.08, 0.15),
+        new THREE.Vector2(0.09, 0.06), new THREE.Vector2(0.12, 0.0), new THREE.Vector2(0.11, 0.0)
+    ], 24);
+    addMesh(at(bell, w.to + 0.16, floor + 1.88, hw - 0.45), mats.brass);
+    bar([w.to + 0.03, floor + 2.1, hw - 0.45], [w.to + 0.16, floor + 2.1, hw - 0.45], 0.015, mats.brass, 6);
+
+    // The master at the wheel.
+    buildMaster({ x: xw - 0.47, floor, xw, yw, R, addMesh, mats });
+
+    return {
+        // Stand aft on the port side, looking past the master to the wheel
+        // and through the windows. Come in through the doorway.
+        eye: [w.from + 0.5, floor + 1.62, -Math.min(0.8, hw - 0.4)],
+        look: [xw + 0.3, yw + 0.2, 0.15],
+        door: { eye: [w.from - 1.8, floor + 1.62, 0], look: [w.from + 1.2, floor + 1.4, 0] }
+    };
+}
+
+// A master in a double breasted reefer and peaked cap, both hands on the
+// wheel. Built from simple shapes in the ship's frame, facing forward.
+function buildMaster({ x, floor, xw, yw, R, addMesh, mats }) {
+    const V = (a, b, c) => new THREE.Vector3(a, b, c);
+    const limb = (a, b, r, mat) => {
+        const d = b.clone().sub(a);
+        const geo = new THREE.CapsuleGeometry(r, Math.max(0.01, d.length() - r), 6, 12);
+        geo.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(V(0, 1, 0), d.clone().normalize()));
+        const m = a.clone().add(b).multiplyScalar(0.5);
+        addMesh(geo.translate(m.x, m.y, m.z), mat);
+    };
+    const f = floor;
+    // Boots and legs.
+    for (const s of [-1, 1]) {
+        addMesh(new THREE.BoxGeometry(0.28, 0.09, 0.11).translate(x + 0.05, f + 0.045, s * 0.11), mats.leather);
+        limb(V(x, f + 0.1, s * 0.11), V(x, f + 0.9, s * 0.1), 0.075, mats.wool);
+    }
+    // Reefer jacket: a lathed body, broad across the shoulders.
+    const body = new THREE.LatheGeometry([
+        V(0.0, 0.78), V(0.17, 0.78), V(0.175, 0.95), V(0.16, 1.08), V(0.18, 1.28), V(0.2, 1.42),
+        V(0.12, 1.5), V(0.06, 1.53), V(0.0, 1.53)
+    ].map((v) => new THREE.Vector2(v.x, v.y)), 28);
+    body.scale(0.72, 1, 1.12);
+    addMesh(body.translate(x, f, 0), mats.wool);
+    // Two rows of brass buttons.
+    for (const s of [-1, 1]) for (let k = 0; k < 4; k++) {
+        const y = f + 1.02 + k * 0.09;
+        addMesh(new THREE.SphereGeometry(0.012, 8, 6).translate(x + 0.135, y, s * 0.06), mats.brass);
+    }
+    // Shirt collar and tie.
+    addMesh(new THREE.CylinderGeometry(0.06, 0.065, 0.05, 16).translate(x, f + 1.52, 0), mats.shirt);
+    addMesh(new THREE.BoxGeometry(0.02, 0.1, 0.035).translate(x + 0.055, f + 1.47, 0), mats.leather);
+    // Arms reaching to the rim at about ten to two, elbows down and out.
+    const Lu = 0.3, Lf = 0.29;
+    for (const s of [-1, 1]) {
+        const th = THREE.MathUtils.degToRad(52);
+        const hand = V(xw - 0.05, yw + Math.cos(th) * R, s * Math.sin(th) * R);
+        const shoulder = V(x, f + 1.42, s * 0.22);
+        const d = hand.clone().sub(shoulder), D = Math.min(d.length(), Lu + Lf - 0.01);
+        const dn = d.clone().normalize();
+        const a = (Lu * Lu - Lf * Lf + D * D) / (2 * D);
+        const hgt = Math.sqrt(Math.max(0, Lu * Lu - a * a));
+        const pole = V(-0.2, -1, s * 0.6);
+        const perp = pole.sub(dn.clone().multiplyScalar(pole.dot(dn))).normalize();
+        const elbow = shoulder.clone().addScaledVector(dn, a).addScaledVector(perp, hgt);
+        const wrist = elbow.clone().addScaledVector(hand.clone().sub(elbow).normalize(), Lf - 0.03);
+        limb(shoulder, elbow, 0.058, mats.wool);
+        limb(elbow, wrist, 0.05, mats.wool);
+        addMesh(new THREE.TorusGeometry(0.05, 0.008, 6, 16).lookAt(hand.clone().sub(elbow)).translate(wrist.x, wrist.y, wrist.z), mats.brass); // cuff braid
+        addMesh(new THREE.SphereGeometry(0.045, 12, 10).scale(1.2, 0.8, 1).translate(hand.x - 0.01, hand.y, hand.z), mats.skin);
+        addMesh(new THREE.SphereGeometry(0.075, 16, 12).scale(1, 0.75, 1).translate(shoulder.x, shoulder.y + 0.02, shoulder.z), mats.wool);
+    }
+    // Neck and head.
+    addMesh(new THREE.CylinderGeometry(0.05, 0.055, 0.08, 14).translate(x, f + 1.57, 0), mats.skin);
+    const hy = f + 1.67;
+    addMesh(new THREE.SphereGeometry(0.1, 28, 20).scale(1.0, 1.18, 0.9).translate(x, hy, 0), mats.skin);
+    for (const s of [-1, 1]) {
+        addMesh(new THREE.SphereGeometry(0.025, 10, 8).scale(0.6, 1.2, 1).translate(x - 0.005, hy, s * 0.092), mats.skin);   // ears
+        addMesh(new THREE.SphereGeometry(0.011, 8, 6).translate(x + 0.088, hy + 0.025, s * 0.035), mats.eye);            // eyes
+        addMesh(new THREE.BoxGeometry(0.01, 0.008, 0.035).translate(x + 0.093, hy + 0.045, s * 0.036), mats.beard);       // brows
+    }
+    addMesh(new THREE.ConeGeometry(0.018, 0.045, 10).rotateZ(-Math.PI / 2).translate(x + 0.112, hy, 0), mats.skin);   // nose
+    // Full grey beard and moustache.
+    // Beard along the jaw and chin, leaving the mouth; a moustache above.
+    addMesh(new THREE.SphereGeometry(0.1, 24, 16, Math.PI * 0.55, Math.PI * 0.9, Math.PI * 0.62, Math.PI * 0.38)
+        .scale(1.0, 1.45, 0.98).translate(x + 0.004, hy + 0.01, 0), mats.beard);
+    addMesh(new THREE.SphereGeometry(0.06, 16, 10).scale(0.75, 0.9, 1.1).translate(x + 0.05, hy - 0.115, 0), mats.beard);
+    addMesh(new THREE.CapsuleGeometry(0.011, 0.055, 4, 8).rotateX(Math.PI / 2).translate(x + 0.1, hy - 0.03, 0), mats.beard);
+    addMesh(new THREE.BoxGeometry(0.008, 0.008, 0.035).translate(x + 0.098, hy - 0.052, 0), mats.red);   // lips
+    // Peaked cap: band, crown, peak and badge.
+    addMesh(new THREE.CylinderGeometry(0.104, 0.102, 0.05, 28).translate(x, hy + 0.11, 0), mats.leather);
+    addMesh(new THREE.CylinderGeometry(0.125, 0.106, 0.05, 28).scale(1.05, 1, 1).translate(x - 0.005, hy + 0.155, 0), mats.wool);
+    addMesh(new THREE.CircleGeometry(0.1, 20, -Math.PI / 2, Math.PI).rotateX(-Math.PI / 2).rotateZ(-0.35)
+        .scale(0.8, 1, 1).translate(x + 0.07, hy + 0.09, 0), mats.leather);
+    addMesh(new THREE.BoxGeometry(0.01, 0.025, 0.04).translate(x + 0.104, hy + 0.115, 0), mats.brass);
+}
+
+// Faces for the telegraph, compass card, clock and a chart.
+function dialTexture(kind) {
+    const S = 512, canvas = document.createElement('canvas');
+    canvas.width = canvas.height = S;
+    const c = canvas.getContext('2d');
+    const cx = S / 2;
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    if (kind === 'chart') {
+        c.fillStyle = '#e9e1c9'; c.fillRect(0, 0, S, S);
+        c.strokeStyle = 'rgba(70,90,120,0.6)'; c.lineWidth = 2;
+        const random = seededRandom(61);
+        for (let k = 0; k < 7; k++) {
+            c.beginPath();
+            let y = 60 + k * 55;
+            c.moveTo(0, y);
+            for (let x = 0; x <= S; x += 32) c.lineTo(x, y + Math.sin(x * 0.02 + k) * 18 + (random() - 0.5) * 8);
+            c.stroke();
+        }
+        c.fillStyle = '#c9b98d';
+        c.beginPath(); c.moveTo(0, 0); c.lineTo(S * 0.45, 0); c.bezierCurveTo(S * 0.4, S * 0.2, S * 0.2, S * 0.25, 0, S * 0.3); c.fill();
+        c.strokeStyle = 'rgba(40,40,40,0.7)'; c.lineWidth = 1;
+        for (let k = 0; k < 40; k++) { c.fillStyle = 'rgba(40,40,40,0.55)'; c.font = '14px serif'; c.fillText(String(Math.floor(random() * 30) + 2), 80 + random() * 400, 140 + random() * 340); }
+        c.font = 'italic 28px Georgia, serif'; c.fillStyle = 'rgba(40,40,40,0.75)'; c.fillText('Port Phillip Heads', S * 0.6, S * 0.85);
+    } else {
+        c.fillStyle = kind === 'telegraph' ? '#f3eedf' : '#f5f1e4';
+        c.beginPath(); c.arc(cx, cx, cx, 0, Math.PI * 2); c.fill();
+        c.strokeStyle = '#222'; c.lineWidth = 6; c.beginPath(); c.arc(cx, cx, cx - 8, 0, Math.PI * 2); c.stroke();
+        if (kind === 'compass') {
+            for (let k = 0; k < 32; k++) {
+                const a = (k / 32) * Math.PI * 2;
+                c.fillStyle = k % 8 === 0 ? '#111' : k % 4 === 0 ? '#333' : '#777';
+                c.beginPath();
+                const len = k % 8 === 0 ? 0.85 : k % 4 === 0 ? 0.62 : 0.4;
+                c.moveTo(cx + Math.sin(a) * cx * len, cx - Math.cos(a) * cx * len);
+                c.lineTo(cx + Math.sin(a + 0.08) * 30, cx - Math.cos(a + 0.08) * 30);
+                c.lineTo(cx + Math.sin(a - 0.08) * 30, cx - Math.cos(a - 0.08) * 30);
+                c.fill();
+            }
+            c.fillStyle = '#8e1d18'; c.font = 'bold 54px Georgia, serif';
+            c.fillText('N', cx, 52);
+            c.fillStyle = '#111'; c.font = 'bold 40px Georgia, serif';
+            c.fillText('S', cx, S - 46); c.fillText('E', S - 44, cx); c.fillText('W', 46, cx);
+        } else if (kind === 'clock') {
+            c.fillStyle = '#111'; c.font = '44px Georgia, serif';
+            const roman = ['XII', 'I', 'II', 'III', 'IIII', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'];
+            roman.forEach((t, k) => { const a = (k / 12) * Math.PI * 2; c.fillText(t, cx + Math.sin(a) * 190, cx - Math.cos(a) * 190); });
+            c.lineWidth = 10; c.lineCap = 'round';
+            c.beginPath(); c.moveTo(cx, cx); c.lineTo(cx + 90, cx - 60); c.stroke();
+            c.lineWidth = 6; c.beginPath(); c.moveTo(cx, cx); c.lineTo(cx - 30, cx - 150); c.stroke();
+        } else {
+            // Engine room telegraph: ahead to one side, astern to the other.
+            const labels = ['FULL', 'HALF', 'SLOW', 'STAND BY', 'STOP', 'FINISHED', 'SLOW', 'HALF', 'FULL'];
+            labels.forEach((t, k) => {
+                const a = -Math.PI * 0.8 + (k / (labels.length - 1)) * Math.PI * 1.6;
+                c.save(); c.translate(cx, cx); c.rotate(a);
+                c.fillStyle = k < 3 ? '#1f5a2a' : k > 5 ? '#8e1d18' : '#111';
+                c.font = 'bold 30px Georgia, serif';
+                c.fillText(t, 0, -cx * 0.72);
+                c.restore();
+                c.strokeStyle = '#333'; c.lineWidth = 3;
+                const b = a + Math.PI * 0.1;
+                c.beginPath(); c.moveTo(cx + Math.sin(b) * cx * 0.55, cx - Math.cos(b) * cx * 0.55); c.lineTo(cx + Math.sin(b) * cx * 0.9, cx - Math.cos(b) * cx * 0.9); c.stroke();
+            });
+            c.font = 'bold 34px Georgia, serif'; c.fillStyle = '#1f5a2a'; c.fillText('AHEAD', cx - 120, cx + 150);
+            c.fillStyle = '#8e1d18'; c.fillText('ASTERN', cx + 120, cx + 150);
+            c.fillStyle = '#111'; c.font = '28px Georgia, serif'; c.fillText('ENGINE ROOM', cx, cx + 40);
+            c.strokeStyle = '#111'; c.lineWidth = 10; c.lineCap = 'round';
+            c.beginPath(); c.moveTo(cx, cx); c.lineTo(cx, cx - 170); c.stroke();
+        }
+    }
+    const t = new THREE.CanvasTexture(canvas);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
+    return t;
 }
 
 function drawName(text) {
@@ -1347,6 +1751,7 @@ function makeDesktopUi(parent) {
                 <input id="wx-then" type="range" min="0" max="1" step="0.01" value="0">
                 <div class="wx-panel__scale"><span>Today</span><span class="wx-panel__built"></span></div>
                 <p class="wx-panel__note"></p>
+                <button type="button" class="wx-panel__inside" hidden>Step into the wheelhouse</button>
             </div>
             <p class="wx-panel__depth" title=""></p>
         </div>`;
@@ -1366,6 +1771,9 @@ function makeDesktopUi(parent) {
         toggle.setAttribute('aria-expanded', 'false');
     }
     let onBlend = () => {};
+    let onInside = () => {};
+    const insideButton = panel.querySelector('.wx-panel__inside');
+    insideButton.addEventListener('click', () => onInside());
     slider.addEventListener('input', () => onBlend(Number(slider.value)));
     let lastDepth = '';
 
@@ -1386,6 +1794,8 @@ function makeDesktopUi(parent) {
                 list.appendChild(li);
             }
             then.hidden = !handlers.hasGhost;
+            insideButton.hidden = !handlers.hasInside;
+            onInside = handlers.onInside;
             if (state.data.ghost) {
                 panel.querySelector('.wx-panel__built').textContent = (state.data.built?.match(/\d{4}/)?.[0] || 'As built') + ' (indicative)';
                 panel.querySelector('.wx-panel__note').textContent = state.data.ghost.note || '';
@@ -1403,6 +1813,7 @@ function makeDesktopUi(parent) {
             for (const b of list.querySelectorAll('button')) b.classList.toggle('is-active', b.dataset.id === id);
         },
         setBlend(value) { slider.value = String(value); },
+        setInside(inside) { insideButton.textContent = inside ? 'Step back out' : 'Step into the wheelhouse'; },
         setDepth(depth, seabed) {
             const text = seabed ? `Depth ${depth.toFixed(1)} m (seabed ${seabed} m)` : '';
             if (text !== lastDepth) { depthEl.textContent = text; lastDepth = text; }

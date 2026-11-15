@@ -71,6 +71,20 @@
       "source": "Dive reports (Aquability; The Scuba Doctor); Victorian Heritage Register, S247",
       "photo": "/assets/wrecks/euro/stern.webp",
       "photoCredit": "Picture rendered from the SOE scan"
+    },
+    {
+      "id": "wheelhouse",
+      "title": "Wheelhouse",
+      "ship": [
+        4.8,
+        9.0,
+        0
+      ],
+      "action": "inside",
+      "text": "Step inside an indicative wheelhouse of a steam tug of the 1890s: the master at the wheel, the binnacle with the magnetic compass and its correcting spheres, the engine room telegraph for orders to the engineer, the voice pipe to the engine room, and the chart table. Not drawn from the Euro's plans.",
+      "source": "Indicative reconstruction, after tugs of the period",
+      "photo": "/assets/wrecks/euro/wheelhouse.webp",
+      "photoCredit": "Picture rendered from the reconstruction"
     }
   ],
   "ghost": {
