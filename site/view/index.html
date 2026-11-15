@@ -35,6 +35,18 @@
 
         #viewer { position: fixed; inset: 0; z-index: 0; }
 
+        /* Survey only: no Survey/Dive switch. */
+        .dive-mode-toggle-container { display: none !important; }
+
+        /* SOE logo beside the name in the info panel. The logo is black on
+           transparent, so it is inverted to white for the dark panel. */
+        .soe-title { display: flex; align-items: center; gap: 12px; }
+        .soe-title__logo { flex: none; width: 56px; height: auto; filter: invert(1); opacity: 0.95; }
+        @media (max-width: 600px), (max-height: 500px) {
+            .soe-title { gap: 8px; }
+            .soe-title__logo { width: 34px; }
+        }
+
         #status {
             position: fixed;
             inset: 0;
@@ -167,12 +179,40 @@
             const requested = params.get('model');
             const initial = requested && models[requested] ? requested : keys[0];
 
-            // BelowJS hardcodes "BelowJS" as the info panel title, so swap it here.
+            // BelowJS hardcodes "BelowJS" as the info panel title, so swap it
+            // for the SOE logo and name.
             const setInfoTitle = () => {
                 const title = viewer.ui?.info?.querySelector('.info-panel__title');
-                if (title) title.textContent = 'Southern Ocean Exploration';
+                if (!title || title.querySelector('.soe-title__logo')) return;
+                title.textContent = '';
+                title.classList.add('soe-title');
+                const logo = document.createElement('img');
+                logo.className = 'soe-title__logo';
+                logo.src = '/assets/soe-logo.webp';
+                logo.alt = '';
+                logo.width = 56;
+                logo.height = 42;
+                const name = document.createElement('span');
+                name.textContent = 'Southern Ocean Exploration';
+                title.append(logo, name);
             };
             setInfoTitle();
+
+            // No dive mode: the Survey/Dive switch is hidden (CSS above) and
+            // the Z key and VR buttons can no longer turn it on. The dive
+            // system stays loaded because it also provides the survey lighting.
+            const keepSurveyMode = () => {
+                const dive = viewer.diveSystem;
+                if (!dive || dive.surveyOnly) return !!dive;
+                const setDiveMode = dive.setDiveMode.bind(dive);
+                dive.setDiveMode = () => setDiveMode(false);
+                dive.surveyOnly = true;
+                setDiveMode(false);
+                return true;
+            };
+            if (!keepSurveyMode()) {
+                const wait = setInterval(() => { if (keepSurveyMode()) clearInterval(wait); }, 100);
+            }
 
             // BelowJS also sets the tab to "BelowJS – <model>" on every load.
             const titleEl = document.querySelector('title');
