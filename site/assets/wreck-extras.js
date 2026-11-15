@@ -1873,6 +1873,7 @@ function makeDesktopUi(parent) {
                 li.appendChild(button);
                 list.appendChild(li);
             }
+            list.hidden = state.markers.length === 0;
             then.hidden = !handlers.hasGhost;
             insideButton.hidden = !handlers.hasInside;
             onInside = handlers.onInside;
