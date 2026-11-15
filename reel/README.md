@@ -53,3 +53,8 @@ Everything under `look` has a default in `make_reel.py` (`DEFAULT_LOOK`), and a 
 Levelling: the scan is turned so the sand at its edge lies flat, as in `/view/`. Set `"level": false` to keep the scan as it is.
 
 The finished file is H.264, high profile, about 12 Mbit/s, with a silent AAC track so music can be added in Instagram.
+
+
+## Then and now reel
+
+`reel/thennow-reel.cjs` makes a portrait reel from the `/then-now/` page: the divider sweeping between the reconstruction and the scan while the camera orbits, with a title and an end card. Usage is at the top of the file. 500 frames (20 s at 25 fps) take about 15 minutes with two renderers running.
