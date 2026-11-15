@@ -694,7 +694,7 @@ function makeGhost(g, renderer) {
     // browser. UVs are in metres in the ship's frame, set before the twist
     // is applied, so paint lines (the waterline, plating seams) stay level
     // with the ship.
-    const mats = shipMaterials(h.waterline ?? 2.9);
+    const mats = shipMaterials(h.waterline ?? 2.9, g.colours || {});
     const meshes = [];
     const fadeHooks = [];   // extra things to fade with the reconstruction (the lamp's light)
     const shipGroup = new THREE.Group();
@@ -814,14 +814,27 @@ function makeGhost(g, renderer) {
             const b = c.boat;
             const geo = new THREE.SphereGeometry(1, 28, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
             geo.scale(b.length / 2, 0.75, (b.beam ?? 1.6) / 2);
-            geo.translate(b.at, casingTop + 1.0, 0);
+            const bz = b.z ?? 0;
+            geo.translate(b.at, casingTop + 1.0, bz);
             addMesh(geo, mats.boat);
             const rim = new THREE.TorusGeometry(1, 0.05, 6, 40);
             rim.rotateX(Math.PI / 2);
             rim.scale(b.length / 2, 1, (b.beam ?? 1.6) / 2);
-            rim.translate(b.at, casingTop + 1.0, 0);
+            rim.translate(b.at, casingTop + 1.0, bz);
             addMesh(rim, mats.timber);
-            for (const dx of [-b.length * 0.3, b.length * 0.3]) box(b.at + dx - 0.15, b.at + dx + 0.15, casingTop, 0.45, (b.beam ?? 1.6) * 0.8, mats.timber);
+            for (const dx of [-b.length * 0.3, b.length * 0.3]) {
+                const chock = new THREE.BoxGeometry(0.3, 0.45, (b.beam ?? 1.6) * 0.8).translate(b.at + dx, casingTop + 0.225, bz);
+                addMesh(chock, mats.timber);
+            }
+            // Radial davits at each end, standing on the outboard side.
+            if (b.davits) {
+                const out = Math.sign(bz || 1) * ((g.casing?.width ?? 4) / 2 - 0.15);
+                for (const dx of [-b.length / 2 + 0.25, b.length / 2 - 0.25]) {
+                    const x = b.at + dx;
+                    tube([[x, casingTop, out], [x, casingTop + 1.4, out], [x, casingTop + 2.05, out - Math.sign(out) * 0.25], [x, casingTop + 2.0, bz]], 0.05, mats.boat, 16);
+                    bar([x, casingTop + 1.95, bz], [x, casingTop + 1.25, bz], 0.008, mats.wire, 4);
+                }
+            }
         }
     }
     let roof = casingTop;
@@ -834,14 +847,18 @@ function makeGhost(g, renderer) {
         // Panelled joinery for the walls, lined up with this floor, and a
         // reflection map of the lit wheelhouse for the brass, glass and varnish.
         Object.assign(mats, wheelhouseMaterials(renderer, mats, floor));
+        // Wall materials per box face (+x, -x, +y, -y, +z, -z): painted like
+        // the deckhouse outside, panelled inside.
+        const wallMats = (outside) => [0, 1, 2, 3, 4, 5].map((i) => (i === outside ? mats.paint : mats.panelling));
         // A wall pierced by a row of windows. Runs along x (sides) or z (front).
         const windowWall = (fixed, from, to, panes, isFront) => {
             const len = to - from, mull = 0.09, pane = (len - mull * (panes + 1)) / panes;
+            const outside = isFront ? 0 : (fixed > 0 ? 4 : 5);
             const piece = (a0, a1, y0, y1) => {
                 const geo = isFront
                     ? new THREE.BoxGeometry(t, y1 - y0, a1 - a0).translate(fixed, (y0 + y1) / 2, (a0 + a1) / 2)
                     : new THREE.BoxGeometry(a1 - a0, y1 - y0, t).translate((a0 + a1) / 2, (y0 + y1) / 2, fixed);
-                addMesh(geo, mats.panelling);
+                addMesh(geo, wallMats(outside));
             };
             piece(from, to, floor, sill);
             piece(from, to, head, roof);
@@ -860,9 +877,9 @@ function makeGhost(g, renderer) {
         for (const side of [-1, 1]) windowWall(side * (hw - t / 2), w.from, w.to, Math.max(2, Math.round((w.to - w.from) / 0.8)), false);
         // After wall with a doorway; the door stands open.
         const door = 0.38, doorTop = floor + 1.95, ax = w.from + t / 2;
-        addMesh(new THREE.BoxGeometry(t, H, hw - door).translate(ax, floor + H / 2, -(hw + door) / 2), mats.panelling);
-        addMesh(new THREE.BoxGeometry(t, H, hw - door).translate(ax, floor + H / 2, (hw + door) / 2), mats.panelling);
-        addMesh(new THREE.BoxGeometry(t, roof - doorTop, door * 2).translate(ax, (doorTop + roof) / 2, 0), mats.panelling);
+        addMesh(new THREE.BoxGeometry(t, H, hw - door).translate(ax, floor + H / 2, -(hw + door) / 2), wallMats(1));
+        addMesh(new THREE.BoxGeometry(t, H, hw - door).translate(ax, floor + H / 2, (hw + door) / 2), wallMats(1));
+        addMesh(new THREE.BoxGeometry(t, roof - doorTop, door * 2).translate(ax, (doorTop + roof) / 2, 0), wallMats(1));
         // Door knob.
         addMesh(new THREE.SphereGeometry(0.03, 14, 10).translate(w.from - 0.03 - Math.sin(1.4) * (door * 2 - 0.12), floor + 1.0, door - Math.cos(1.4) * (door * 2 - 0.12) + 0.03), mats.brass);
         // Window sills inside, and deckhead beams.
@@ -880,8 +897,8 @@ function makeGhost(g, renderer) {
         box(w.from - 0.12, w.to + 0.12, roof, 0.1, w.width + 0.24, mats.deckhead);
         // Open bridge rail on the roof.
         const r = roof + 0.1 + 0.95, corners = [[w.from, r, -hw], [w.to, r, -hw], [w.to, r, hw], [w.from, r, hw]];
-        for (let k = 0; k < 4; k++) bar(corners[k], corners[(k + 1) % 4], 0.025, mats.paint, 6);
-        for (const [x, , z] of corners) bar([x, roof + 0.1, z], [x, r, z], 0.025, mats.paint, 6);
+        for (let k = 0; k < 4; k++) bar(corners[k], corners[(k + 1) % 4], 0.025, mats.boat, 6);
+        for (const [x, , z] of corners) bar([x, roof + 0.1, z], [x, r, z], 0.025, mats.boat, 6);
 
         inside = buildBridge({ w, hw, floor, roof, addMesh, bar, mats, fadeHooks, ship: () => shipGroup });
         inside.bounds = { x0: w.from - 0.2, x1: w.to + 0.2, y0: floor - 0.3, y1: roof + 0.3, z: hw + 0.2 };
@@ -905,32 +922,74 @@ function makeGhost(g, renderer) {
         lip.rotateZ(rake);
         lip.translate(f.at - Math.sin(rake) * length, funnelTop, 0);
         addMesh(lip, mats.blackSteel);
-        // Cowl ventilators either side, abaft the funnel, mouths forward.
-        for (const side of [-1, 1]) {
-            const vx = f.at - (f.radius + 0.6), vz = side * (f.radius + 0.25);
-            const pipe = new THREE.CylinderGeometry(0.2, 0.2, 2.0, 16, 1, true);
-            pipe.translate(vx, casingTop + 1.0, vz);
+        // Waste steam pipe up the after side, the whistle on the front.
+        if (f.steamPipe !== false) {
+            const px = f.at - f.radius - 0.16;
+            bar([px, casingTop, 0], [px - Math.sin(rake) * length, funnelTop + 0.25, 0], 0.08, mats.blackSteel, 12);
+        }
+        if (f.whistle !== false) {
+            const wy = base + length * 0.55, wx = f.at + f.radius + 0.1 - Math.sin(rake) * length * 0.55;
+            addMesh(new THREE.CylinderGeometry(0.07, 0.07, 0.45, 14).translate(wx, wy, 0), mats.brass);
+            addMesh(new THREE.SphereGeometry(0.08, 12, 8).translate(wx, wy + 0.25, 0), mats.brass);
+            bar([wx, wy - 0.22, 0], [wx, casingTop, 0], 0.025, mats.brass, 8);
+        }
+        // Cowl ventilators, mouths forward: from the data, or either side
+        // abaft the funnel.
+        const vents = g.vents || [-1, 1].map((side) => ({ at: f.at - (f.radius + 0.6), z: side * (f.radius + 0.25), height: 2.0 }));
+        for (const v of vents) {
+            const vh = v.height ?? 2.0;
+            const pipe = new THREE.CylinderGeometry(0.2, 0.2, vh, 16, 1, true);
+            pipe.translate(v.at, casingTop + vh / 2, v.z);
             addMesh(pipe, mats.paint);
             const cowl = new THREE.CylinderGeometry(0.42, 0.24, 0.6, 18, 1, true);
             cowl.rotateZ(Math.PI / 2);
-            cowl.translate(vx + 0.2, casingTop + 2.15, vz);
+            cowl.translate(v.at + 0.2, casingTop + vh + 0.15, v.z);
             addMesh(cowl, mats.paint);
         }
     }
 
     // Masts with standing rigging. Schooner rig: a foremast and a mainmast.
     const masts = g.masts || [];
-    masts.forEach((m, k) => {
-        const base = deck(m.at);
+    const heads = [];
+    masts.forEach((m) => {
+        const base = deck(m.at), rk = THREE.MathUtils.degToRad(m.rake ?? 0);
+        const along = (t) => [m.at - Math.sin(rk) * m.height * t, base + Math.cos(rk) * m.height * t, 0];
+        heads.push(along(1));
         const geo = new THREE.CylinderGeometry(0.09, 0.16, m.height, 14, 1, true);
-        geo.translate(m.at, base + m.height / 2, 0);
+        geo.translate(0, m.height / 2, 0).rotateZ(rk).translate(m.at, base, 0);
         addMesh(geo, mats.mast);
-        const head = [m.at, base + m.height, 0];
-        bar([m.at, base + m.height * 0.72, -1.0], [m.at, base + m.height * 0.72, 1.0], 0.05, mats.mast);   // crosstrees
+        const ct = along(0.72);
+        bar([ct[0], ct[1], -1.0], [ct[0], ct[1], 1.0], 0.05, mats.mast);   // crosstrees
+    });
+    masts.forEach((m, k) => {
+        const head = heads[k];
         for (const side of [-1, 1]) bar(head, [m.at - 1.2, deck(m.at - 1.2) + bulwark, side * breadth(m.at - 1.2)], 0.014, mats.wire, 4);
         if (k === 0) bar(head, [g.bow, deck(g.bow) + bulwark, 0], 0.014, mats.wire, 4);
-        if (k === masts.length - 1 && masts.length > 1) bar(head, [masts[0].at, deck(masts[0].at) + masts[0].height * 0.85, 0], 0.014, mats.wire, 4);
+        if (k === masts.length - 1 && masts.length > 1) {
+            const fore = heads[0];
+            bar(head, [fore[0] + (head[0] - fore[0]) * 0.05, fore[1] - masts[0].height * 0.12, 0], 0.014, mats.wire, 4);
+        }
     });
+
+    // Spars stowed on deck (from the data: ends as [along, height above the
+    // deck there, across]).
+    for (const sp of g.spars || []) {
+        const A = [sp.from[0], deck(sp.from[0]) + sp.from[1], sp.from[2] ?? 0];
+        const B = [sp.to[0], deck(sp.to[0]) + sp.to[1], sp.to[2] ?? 0];
+        bar(A, B, sp.radius ?? 0.09, mats.boat, 12);
+    }
+
+    // Lifebuoys on the sides of the deckhouse or the after casing.
+    for (const lb of g.lifebuoys || []) {
+        const host = lb.on === 'afterCasing' ? g.afterCasing : g.casing;
+        if (!host) continue;
+        const hostBase = deck((host.from + host.to) / 2);
+        for (const side of lb.sides || [1, -1]) {
+            const ring = new THREE.TorusGeometry(0.31, 0.07, 10, 28);
+            ring.translate(lb.at, hostBase + (lb.height ?? host.height * 0.55), side * (host.width / 2 + 0.08));
+            addMesh(ring, mats.boat);
+        }
+    }
 
     // ── Towing gear ─────────────────────────────────────────────────
     // As on British-built steam tugs of the period: the towing hook sits
@@ -1005,7 +1064,7 @@ function makeGhost(g, renderer) {
         const rim = new THREE.TorusGeometry(qr, 0.045, 8, 20, span * 2);
         rim.rotateZ(Math.PI - span).rotateX(-Math.PI / 2).translate(qx, qy, 0);
         addMesh(rim, mats.iron);
-        const toX = g.afterCasing?.to ?? g.casing?.from ?? qx + 10;
+        const toX = g.casing?.from ?? g.afterCasing?.to ?? qx + 10;
         for (const side of [-1, 1]) {
             const end = [qx - Math.cos(span) * qr, qy, side * Math.sin(span) * qr];
             const lead = [qx + 1.2, deck(qx + 1.2) + 0.2, side * (breadth(qx + 1.2) - 0.35)];
@@ -1101,8 +1160,9 @@ function boxUV(geo) {
 // Euro's actual colours are not recorded in our sources.
 
 let shipMaterialCache = null;
-function shipMaterials(waterline) {
-    if (shipMaterialCache?.waterline === waterline) return shipMaterialCache.mats;
+function shipMaterials(waterline, colours = {}) {
+    const key = JSON.stringify([waterline, colours]);
+    if (shipMaterialCache?.key === key) return shipMaterialCache.mats;
     const texture = (canvas, repeatU, repeatV, colour = true) => {
         const t = new THREE.CanvasTexture(canvas);
         t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -1115,15 +1175,15 @@ function shipMaterials(waterline) {
 
     const hull = drawHull(waterline);
     const deck = drawDeck();
-    const paint = drawPaint();
+    const paint = drawPaint(colours.deckhouse);
     const timber = drawTimber();
     const mats = {
         hull: standard({ map: texture(hull.colour, 1 / 16, 1 / 8), bumpMap: texture(hull.bump, 1 / 16, 1 / 8, false), bumpScale: 1.5, roughnessMap: texture(hull.rough, 1 / 16, 1 / 8, false), roughness: 1, metalness: 0.2 }),
         deck: standard({ map: texture(deck.colour, 1 / 8, 1 / 4), bumpMap: texture(deck.bump, 1 / 8, 1 / 4, false), bumpScale: 1.2, roughness: 0.85, metalness: 0 }),
         paint: standard({ map: texture(paint, 1 / 4, 1 / 4), roughness: 0.55, metalness: 0.05 }),
         timber: standard({ map: texture(timber, 1 / 2, 1 / 2), roughness: 0.45, metalness: 0 }),
-        mast: standard({ map: texture(timber, 1 / 2, 1 / 2), color: '#d9b98c', roughness: 0.5, metalness: 0 }),
-        funnel: standard({ map: texture(drawFunnel(), 1, 1), roughness: 0.6, metalness: 0.1 }),
+        mast: standard({ map: texture(timber, 1 / 2, 1 / 2), color: colours.masts || '#d9b98c', roughness: 0.5, metalness: 0 }),
+        funnel: standard({ map: texture(drawFunnel(colours.funnel, colours.funnelTop), 1, 1), roughness: 0.6, metalness: 0.1 }),
         blackSteel: standard({ color: '#1c1c1c', roughness: 0.55, metalness: 0.3 }),
         wire: standard({ color: '#2b2b2b', roughness: 0.6, metalness: 0.4 }),
         brass: standard({ color: '#c09444', roughness: 0.35, metalness: 0.55 }),
@@ -1147,7 +1207,7 @@ function shipMaterials(waterline) {
         shirt: standard({ color: '#f1efe8', roughness: 0.7, metalness: 0 }),
         eye: standard({ color: '#1a1410', roughness: 0.2, metalness: 0 })
     };
-    shipMaterialCache = { waterline, mats };
+    shipMaterialCache = { key, mats };
     return mats;
 }
 
@@ -1281,12 +1341,12 @@ function drawDeck() {
 }
 
 // White painted steel, 4 m square.
-function drawPaint() {
+function drawPaint(colour = '#e6e2d6') {
     const W = 4 * PX;
     const canvas = document.createElement('canvas'); canvas.width = canvas.height = W;
     const c = canvas.getContext('2d');
-    c.fillStyle = '#e6e2d6'; c.fillRect(0, 0, W, W);
-    blotches(c, W, W, 40, ['rgba(120,110,90,0.06)', 'rgba(255,255,255,0.08)'], 31);
+    c.fillStyle = colour; c.fillRect(0, 0, W, W);
+    blotches(c, W, W, 40, ['rgba(120,110,90,0.06)', 'rgba(255,255,255,0.06)'], 31);
     for (let x = 0; x < W; x += 1.3 * PX) { c.fillStyle = 'rgba(0,0,0,0.07)'; c.fillRect(x, 0, 2, W); }
     noiseFill(c, W, W, 6, 32);
     return canvas;
@@ -1323,15 +1383,18 @@ function drawTimber() {
 }
 
 // Funnel: buff, black top, a little soot.
-function drawFunnel() {
+// Funnel: body colour with a black top (topFraction of the visible
+// funnel), a little soot under it.
+function drawFunnel(colour = '#c4a165', topFraction = 0.17) {
     const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 1024;
     const c = canvas.getContext('2d');
-    c.fillStyle = '#c4a165'; c.fillRect(0, 0, 256, 1024);
-    c.fillStyle = '#141414'; c.fillRect(0, 0, 256, 170);
-    const soot = c.createLinearGradient(0, 170, 0, 330);
+    const top = Math.round(1024 * topFraction);
+    c.fillStyle = colour; c.fillRect(0, 0, 256, 1024);
+    c.fillStyle = '#141414'; c.fillRect(0, 0, 256, top);
+    const soot = c.createLinearGradient(0, top, 0, top + 160);
     soot.addColorStop(0, 'rgba(20,20,20,0.35)'); soot.addColorStop(1, 'rgba(20,20,20,0)');
-    c.fillStyle = soot; c.fillRect(0, 170, 256, 160);
-    for (let y = 300; y < 1024; y += 150) { c.fillStyle = 'rgba(0,0,0,0.12)'; c.fillRect(0, y, 256, 3); }
+    c.fillStyle = soot; c.fillRect(0, top, 256, 160);
+    for (let y = top + 130; y < 1024; y += 150) { c.fillStyle = 'rgba(0,0,0,0.12)'; c.fillRect(0, y, 256, 3); }
     noiseFill(c, 256, 1024, 8, 51);
     return canvas;
 }
@@ -2191,7 +2254,8 @@ function makeDesktopUi(parent) {
             insideButton.hidden = !handlers.hasInside;
             onInside = handlers.onInside;
             if (state.data.ghost) {
-                panel.querySelector('.wx-panel__built').textContent = (state.data.built?.match(/\d{4}/)?.[0] || 'As built') + ' (indicative)';
+                panel.querySelector('.wx-panel__built').textContent = state.data.ghost.sliderLabel
+                    || (state.data.built?.match(/\d{4}/)?.[0] || 'As built') + ' (indicative)';
                 panel.querySelector('.wx-panel__note').textContent = state.data.ghost.note || '';
             }
             depthEl.title = state.data.seabedDepthNote || '';

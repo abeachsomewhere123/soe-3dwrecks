@@ -5,8 +5,8 @@
   "built": "Built 1897 by Gourlay Bros, Dundee",
   "pois": [],
   "ghost": {
-    "label": "As built, indicative",
-    "note": "Hull sized from the registered dimensions (130 x 22.5 x 12.2 ft) and fitted to the scan: she lies about 36 degrees to port, easing to about 30 degrees at the bow. The deck layout follows British-built steam tugs of the period: towing hook amidships abaft the funnel, a clear after deck under towing bows, steering quadrant on deck at the stern. Positions and sizes are indicative, not from the Euro's plans.",
+    "label": "Reconstruction, indicative",
+    "note": "Hull sized from the registered dimensions (130 x 22.5 x 12.2 ft) and fitted to the scan: she lies about 36 degrees to port, easing to about 30 degrees at the bow. Deck layout, funnel, masts, boat and towing gear follow a State Library of Western Australia photograph of the Euro (date not recorded here), measured from the photo; detail the photo doesn't show follows tugs of the period. Colours can't be read from a black and white photo: the funnel's dull red with a black top fits its grey tone but is a guess.",
     "listToPort": 36.0,
     "keel": [
       -127.2396,
@@ -35,51 +35,53 @@
     "hull": {
       "deckAtSide": 3.8,
       "bulwark": 0.85,
-      "sheerBow": 1.3,
+      "sheerBow": 1.6,
       "sheerStern": 0.4,
       "counter": 2.6,
       "bowLength": 0.32,
       "bowFullness": 1.8
     },
     "casing": {
-      "from": -2.8,
-      "to": 6.2,
+      "from": -0.9,
+      "to": 15.7,
       "width": 4.2,
       "height": 2.1,
-      "portholeSpacing": 1.6,
+      "portholeSpacing": 1.8,
       "boat": {
-        "at": -0.9,
-        "length": 3.6,
-        "beam": 1.5
+        "at": 1.75,
+        "length": 4.5,
+        "beam": 1.5,
+        "z": 0.95,
+        "davits": true
       }
     },
     "wheelhouse": {
-      "from": 3.4,
-      "to": 6.2,
+      "from": 9.5,
+      "to": 12.4,
       "width": 3.2,
-      "height": 2.2
+      "height": 2.0
     },
     "funnel": {
-      "at": 1.8,
-      "radius": 0.85,
-      "height": 8.6,
-      "rake": 6
+      "at": 5.3,
+      "radius": 0.95,
+      "height": 11.0,
+      "rake": 3
     },
     "masts": [
       {
-        "at": 8.2,
-        "height": 13.0
+        "at": 12.9,
+        "height": 15.5,
+        "rake": 5
       },
       {
-        "at": -2.3,
-        "height": 11.0
+        "at": -0.4,
+        "height": 15.5,
+        "rake": 5
       }
     ],
     "towingArches": [
-      -4.3,
-      -7.6,
-      -10.9,
-      -14.1
+      -9.3,
+      -3.7
     ],
     "bitts": [
       19.6
@@ -107,27 +109,72 @@
       ]
     },
     "afterCasing": {
-      "from": -9.6,
-      "to": -2.8,
+      "from": -13.4,
+      "to": -7.5,
       "width": 3.0,
-      "height": 0.75,
+      "height": 1.0,
       "skylight": {
-        "from": -7.8,
-        "to": -4.6,
-        "width": 1.8
+        "from": -12.6,
+        "to": -8.4,
+        "width": 1.6
       }
     },
     "towingHook": {
-      "at": -2.85,
+      "at": -0.95,
       "height": 1.45
     },
-    "towingArchHeight": 1.95,
+    "towingArchHeight": 1.75,
     "quarterBitts": [
       -15.9
     ],
     "steering": {
       "quadrant": true,
       "radius": 1.0
-    }
+    },
+    "sliderLabel": "Reconstruction (indicative)",
+    "photoSource": "State Library of Western Australia, photograph of the steam tug Euro",
+    "colours": {
+      "deckhouse": "#4a4339",
+      "funnel": "#8a4232",
+      "funnelTop": 0.22,
+      "masts": "#a8946f"
+    },
+    "vents": [
+      {
+        "at": 1.6,
+        "z": -0.95,
+        "height": 1.8
+      },
+      {
+        "at": 3.3,
+        "z": -0.95,
+        "height": 1.6
+      }
+    ],
+    "spars": [
+      {
+        "from": [
+          15.9,
+          1.4,
+          0
+        ],
+        "to": [
+          19.6,
+          1.9,
+          0
+        ],
+        "radius": 0.09
+      }
+    ],
+    "lifebuoys": [
+      {
+        "at": 9.1,
+        "on": "casing"
+      },
+      {
+        "at": -11.1,
+        "on": "afterCasing"
+      }
+    ]
   }
 }

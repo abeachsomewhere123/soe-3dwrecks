@@ -43,6 +43,8 @@ The towing gear follows British-built steam tugs of the period: the towing hook 
 
 **On the AR page** (`/ar/`), the same file adds the reconstruction to the tabletop wreck: click a thumbstick to fade between the wreck and the reconstruction. The depth gauge and stepping inside are left out at that scale.
 
+The Euro's superstructure follows a State Library of Western Australia photograph of her, measured along the hull from the photo (lifebuoys give the scale): a long dark deckhouse from just abaft midships, the mainmast and towing hook at its after end, the boat on davits between the mainmast and a tall funnel (black top, waste steam pipe aft, whistle forward), the wheelhouse and foremast well forward, a spar on the foredeck, and a long after deck with two towing bows and a low structure near the stern. Colours can't be read from the black and white photo; the funnel's dull red is a guess. Paint colours are set in `ghost.colours`.
+
 The data file holds the seabed depth, any marker positions (in the `.glb` file's own coordinates) with card text and sources, and the ghost: its keel point and forward, up and starboard directions (which carry the wreck's list; the Euro lies about 36 degrees to port), an optional `twist` that bends the ghost to follow changes in list and position along the hull (the Euro eases to about 30 degrees at the bow), the bow's length and fullness, the hull dimensions, and the indicative layout of the casing, wheelhouse, funnel, masts, boat and towing gear. `euro.json` is the worked example. Wrecks without a file show none of this.
 
 ## Tools
