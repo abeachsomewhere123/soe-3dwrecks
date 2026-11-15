@@ -788,7 +788,7 @@ function makeGhost(g, renderer) {
     // Rubbing strake at deck level and a timber cap rail on the bulwarks.
     for (const side of [-1, 1]) {
         tube(along((x) => [x, deck(x) - 0.12, side * (breadth(x) + 0.07)]), 0.11, mats.blackSteel, 160);
-        tube(along((x) => [x, deck(x) + bulwark + 0.03, side * breadth(x)]), 0.06, mats.timber, 160);
+        tube(along((x) => [x, deck(x) + bulwark + 0.03, side * breadth(x)]), 0.06, mats.weatheredTimber, 160);
     }
 
     // Her name on both bows.
@@ -813,7 +813,16 @@ function makeGhost(g, renderer) {
     if (g.casing) {
         const c = g.casing;
         const base = deck((c.from + c.to) / 2);
-        box(c.from, c.to, base - 0.3, c.height + 0.3, c.width, mats.paint);
+        if (!mats.deckhouse) {
+            const t = new THREE.CanvasTexture(mats.deckhouseCanvas);
+            t.wrapS = t.wrapT = THREE.RepeatWrapping;
+            t.colorSpace = THREE.SRGBColorSpace;
+            t.anisotropy = 8;
+            t.repeat.set(1 / 4, 1 / (c.height + 0.3));
+            t.offset.y = -(base - 0.3) / (c.height + 0.3);
+            mats.deckhouse = new THREE.MeshStandardMaterial({ map: t, roughness: 0.7, metalness: 0.05, transparent: true, opacity: 0, side: THREE.DoubleSide });
+        }
+        box(c.from, c.to, base - 0.3, c.height + 0.3, c.width, mats.deckhouse);
         casingTop = base + c.height;
         // Brass portholes along both sides.
         for (let x = c.from + 1.2; c.portholeSpacing !== 0 && x < c.to - 0.6; x += c.portholeSpacing ?? 1.8) {
@@ -858,7 +867,7 @@ function makeGhost(g, renderer) {
         // Engine room skylight: timber frame, glazed top.
         if (c.skylight) {
             const k = c.skylight;
-            box(k.from, k.to, casingTop, 0.55, k.width ?? 1.8, mats.timber);
+            box(k.from, k.to, casingTop, 0.55, k.width ?? 1.8, mats.weatheredTimber);
             box(k.from + 0.08, k.to - 0.08, casingTop + 0.55, 0.04, (k.width ?? 1.8) - 0.16, mats.glass);
         }
         // Ship's boat on the after end of the casing, in chocks.
@@ -873,10 +882,10 @@ function makeGhost(g, renderer) {
             rim.rotateX(Math.PI / 2);
             rim.scale(b.length / 2, 1, (b.beam ?? 1.6) / 2);
             rim.translate(b.at, casingTop + 1.0, bz);
-            addMesh(rim, mats.timber);
+            addMesh(rim, mats.weatheredTimber);
             for (const dx of [-b.length * 0.3, b.length * 0.3]) {
                 const chock = new THREE.BoxGeometry(0.3, 0.45, (b.beam ?? 1.6) * 0.8).translate(b.at + dx, casingTop + 0.225, bz);
-                addMesh(chock, mats.timber);
+                addMesh(chock, mats.weatheredTimber);
             }
             // Radial davits at each end, standing on the outboard side.
             if (b.davits) {
@@ -1129,7 +1138,7 @@ function makeGhost(g, renderer) {
         box(c.from, c.to, base - 0.3, c.height + 0.3, c.width, mats.paint);
         if (c.skylight) {
             const k = c.skylight, top = base + c.height;
-            box(k.from, k.to, top, 0.42, k.width ?? 1.8, mats.timber);
+            box(k.from, k.to, top, 0.42, k.width ?? 1.8, mats.weatheredTimber);
             // Glazed lights pitched like a roof.
             for (const side of [-1, 1]) {
                 const pane = new THREE.PlaneGeometry(k.to - k.from - 0.1, (k.width ?? 1.8) / 2 + 0.05);
@@ -1260,7 +1269,8 @@ function makeGhost(g, renderer) {
     group.add(ship);
     group.visible = false;
 
-    const materials = Object.values(mats);
+    applyExteriorEnvironment(mats, renderer);
+    const materials = Object.values(mats).filter((m) => m?.isMaterial);
     // Ship frame (metres, before the twist) to the model's coordinates.
     const toModel = (p) => new THREE.Vector3().fromArray(warp([...p])).applyMatrix4(ship.matrix);
     const fromModel = (v) => v.clone().applyMatrix4(ship.matrix.clone().invert());
@@ -1321,23 +1331,28 @@ function shipMaterials(waterline, colours = {}) {
     };
     const standard = (options) => new THREE.MeshStandardMaterial({ transparent: true, opacity: 0, side: THREE.DoubleSide, ...options });
 
-    const hull = drawHull(waterline);
-    const deck = drawDeck();
-    const paint = drawPaint(colours.deckhouse);
+    const hull = drawWeatheredHull(waterline);
+    const deck = drawWeatheredDeck();
+    const paint = drawWeatheredDeckhouse(colours.deckhouse);
     const timber = drawTimber();
+    const rustyBlack = drawRustyBlack();
+    const grimyWhite = drawGrimyWhite();
     const mats = {
-        hull: standard({ map: texture(hull.colour, 1 / 16, 1 / 8), bumpMap: texture(hull.bump, 1 / 16, 1 / 8, false), bumpScale: 1.5, roughnessMap: texture(hull.rough, 1 / 16, 1 / 8, false), roughness: 1, metalness: 0.2 }),
-        deck: standard({ map: texture(deck.colour, 1 / 8, 1 / 4), bumpMap: texture(deck.bump, 1 / 8, 1 / 4, false), bumpScale: 1.2, roughness: 0.85, metalness: 0 }),
-        paint: standard({ map: texture(paint, 1 / 4, 1 / 4), roughness: 0.55, metalness: 0.05 }),
+        hull: standard({ map: texture(hull.colour, 1 / 16, 1 / 8), bumpMap: texture(hull.bump, 1 / 16, 1 / 8, false), bumpScale: 2.2, roughnessMap: texture(hull.rough, 1 / 16, 1 / 8, false), roughness: 1, metalness: 0.15 }),
+        deck: standard({ map: texture(deck.colour, 1 / 8, 1 / 4), bumpMap: texture(deck.bump, 1 / 8, 1 / 4, false), bumpScale: 1.4, roughness: 0.9, metalness: 0 }),
+        paint: standard({ map: texture(paint, 1 / 4, 1 / 2.4), roughness: 0.7, metalness: 0.05 }),
+        deckhouseCanvas: paint,
         timber: standard({ map: texture(timber, 1 / 2, 1 / 2), roughness: 0.45, metalness: 0 }),
         mast: standard({ map: texture(timber, 1 / 2, 1 / 2), color: colours.masts || '#d9b98c', roughness: 0.5, metalness: 0 }),
-        funnel: standard({ map: texture(drawFunnel(colours.funnel, colours.funnelTop), 1, 1), roughness: 0.6, metalness: 0.1 }),
-        blackSteel: standard({ color: '#1c1c1c', roughness: 0.55, metalness: 0.3 }),
+        funnel: standard({ map: texture(drawWeatheredFunnel(colours.funnel, colours.funnelTop), 1, 1), roughness: 0.7, metalness: 0.1 }),
+        blackSteel: standard({ map: texture(rustyBlack, 1 / 2, 1 / 2), roughness: 0.65, metalness: 0.25 }),
         wire: standard({ color: '#2b2b2b', roughness: 0.6, metalness: 0.4 }),
         brass: standard({ color: '#c09444', roughness: 0.35, metalness: 0.55 }),
         bronze: standard({ color: '#a8733f', roughness: 0.4, metalness: 0.55 }),
         glass: standard({ color: '#a9c8d2', roughness: 0.04, metalness: 0.1, depthWrite: false }),
-        boat: standard({ color: '#eeebe2', roughness: 0.5, metalness: 0 }),
+        boat: standard({ map: texture(grimyWhite, 1 / 2, 1 / 2), roughness: 0.6, metalness: 0 }),
+        // Varnish gone grey outside: cap rails, skylights, boat gear.
+        weatheredTimber: standard({ map: texture(timber, 1 / 2, 1 / 2), color: '#a69a88', roughness: 0.8, metalness: 0 }),
         rope: standard({ map: texture(drawRope(), 14, 1), roughness: 0.95, metalness: 0 }),
         lampWhite: standard({ color: '#fffbe8', emissive: '#fff2c8', emissiveIntensity: 0.8, roughness: 0.1, metalness: 0 }),
         lampGreen: standard({ color: '#4fe08a', emissive: '#1fc060', emissiveIntensity: 0.9, roughness: 0.1, metalness: 0 }),
@@ -2024,7 +2039,6 @@ function wheelhouseMaterials(renderer, mats, floor) {
     set(mats.beard, { roughness: 0.9, envMap: env, envMapIntensity: 0.25 });
     set(mats.eye, { roughness: 0.08, metalness: 0.1 });
     set(mats.lampGlass, { color: new THREE.Color('#fff4d8'), emissive: new THREE.Color('#ffb85c'), emissiveIntensity: 1.6, roughness: 0.05 });
-    set(mats.deck, { envMap: env, envMapIntensity: 0.3 });
     return added;
 }
 
@@ -2118,6 +2132,338 @@ function drawRope() {
     }
     noiseFill(c, S, S, 18, 111);
     return canvas;
+}
+
+// ── Weathering ───────────────────────────────────────────────────────────
+//
+// Textures for a working steel tug some years into her life: faded and
+// patched paint, rust weeping from seams, rivets and scuppers, paint chipped
+// back to red lead, "hungry horse" dents between the frames, weed and slime
+// along the waterline, barnacles below it, soot on the funnel, bleached and
+// stained decking. All drawn in the browser.
+
+function canvasOf(w, h) {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    return c;
+}
+
+// A run of rust down the plating from (x, y), canvas pixels, y downwards.
+function rustStreak(ctx, x, y, length, width, random, strength = 1) {
+    const g = ctx.createLinearGradient(x, y, x, y + length);
+    g.addColorStop(0, `rgba(${105 + random() * 30},${58 + random() * 16},${34 + random() * 10},${0.55 * strength})`);
+    g.addColorStop(0.3, `rgba(${92 + random() * 20},${54 + random() * 12},${34},${0.3 * strength})`);
+    g.addColorStop(1, 'rgba(80,48,30,0)');
+    ctx.strokeStyle = g;
+    ctx.lineCap = 'round';
+    // A few wavering strands so it reads as a run, not a stripe.
+    for (let k = 0; k < 3; k++) {
+        ctx.lineWidth = width * (0.25 + random() * 0.5);
+        ctx.beginPath();
+        let px = x + (random() - 0.5) * width;
+        ctx.moveTo(px, y);
+        for (let t = 0; t <= 1; t += 0.1) {
+            px += (random() - 0.5) * width * 0.35;
+            ctx.lineTo(px, y + length * t);
+        }
+        ctx.stroke();
+    }
+    // The bloom at the source.
+    ctx.fillStyle = `rgba(${100 + random() * 25},${55 + random() * 12},30,${0.5 * strength})`;
+    ctx.beginPath(); ctx.ellipse(x, y, width * 0.6, width * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// Paint chipped back to red lead primer with rust in the middle.
+function chip(ctx, x, y, r, random, bump) {
+    const pts = 9;
+    const shape = () => {
+        ctx.beginPath();
+        for (let k = 0; k <= pts; k++) {
+            const a = (k / pts) * Math.PI * 2, rr = r * (0.55 + random() * 0.6);
+            const px = x + Math.cos(a) * rr * 1.4, py = y + Math.sin(a) * rr;
+            k ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+        }
+        ctx.closePath();
+    };
+    shape(); ctx.fillStyle = `rgba(${96 + random() * 18},${52 + random() * 10},${38},0.75)`; ctx.fill();
+    ctx.fillStyle = `rgba(${78 + random() * 20},${46},${30},0.8)`;
+    ctx.beginPath(); ctx.ellipse(x, y, r * 0.5, r * 0.35, random(), 0, Math.PI * 2); ctx.fill();
+    if (bump) { bump.fillStyle = 'rgba(60,60,60,0.8)'; bump.beginPath(); bump.ellipse(x, y, r * 1.2, r * 0.9, 0, 0, Math.PI * 2); bump.fill(); }
+}
+
+// Hull plating 16 m by 8 m (v = height above the keel).
+function drawWeatheredHull(waterline) {
+    const W = 16 * PX, H = 8 * PX;
+    const colour = canvasOf(W, H), bump = canvasOf(W, H), rough = canvasOf(W, H);
+    const c = colour.getContext('2d'), b = bump.getContext('2d'), r = rough.getContext('2d');
+    const yPx = (y) => H - y * PX;
+    const wl = yPx(waterline);
+    const random = seededRandom(301);
+
+    // Topsides: faded black, patched where she has been touched up.
+    c.fillStyle = '#202122'; c.fillRect(0, 0, W, wl);
+    blotches(c, W, wl, 220, ['rgba(80,78,72,0.16)', 'rgba(0,0,0,0.25)', 'rgba(60,52,44,0.14)'], 302, [30, 200]);
+    for (let k = 0; k < 14; k++) {       // touched-up patches of fresher black
+        c.fillStyle = `rgba(12,12,12,${0.12 + random() * 0.12})`;
+        c.fillRect(random() * W, random() * wl, 60 + random() * 260, 30 + random() * 120);
+    }
+    // Antifouling below the waterline, faded and patchy.
+    c.fillStyle = '#54281d'; c.fillRect(0, wl, W, H - wl);
+    c.save(); c.translate(0, wl);
+    blotches(c, W, H - wl, 200, ['rgba(140,70,50,0.18)', 'rgba(30,10,6,0.25)', 'rgba(90,80,60,0.14)'], 303, [20, 140]);
+    c.restore();
+
+    // Plating: lapped strakes, staggered butts, rivets; frames every 53 cm
+    // with the plating sagging slightly between them.
+    b.fillStyle = '#808080'; b.fillRect(0, 0, W, H);
+    const frame = 0.53 * PX;
+    for (let x = 0; x < W; x += frame) {
+        const g = b.createLinearGradient(x, 0, x + frame, 0);
+        g.addColorStop(0, 'rgba(255,255,255,0.10)'); g.addColorStop(0.5, 'rgba(0,0,0,0.10)'); g.addColorStop(1, 'rgba(255,255,255,0.10)');
+        b.fillStyle = g; b.fillRect(x, 0, frame, H);
+    }
+    const strake = 0.85, butt = 5.4, pitch = 0.075;
+    const seams = [];
+    for (let k = 0, y = strake; y < 8; k++, y += strake) {
+        const py = yPx(y);
+        seams.push(py);
+        c.fillStyle = 'rgba(0,0,0,0.4)'; c.fillRect(0, py, W, 2);
+        b.fillStyle = '#a0a0a0'; b.fillRect(0, py - 10, W, 10);
+        b.fillStyle = '#4a4a4a'; b.fillRect(0, py, W, 2);
+        for (let x = 0; x < W; x += pitch * PX) {
+            for (const dy of [-6, -16]) {
+                b.fillStyle = '#d0d0d0'; b.beginPath(); b.arc(x + (dy === -16 ? pitch * PX / 2 : 0), py + dy, 2.3, 0, Math.PI * 2); b.fill();
+                // Some rivet heads weep rust.
+                if (py < wl && random() < 0.018) {
+                    rustStreak(c, x, py + dy, 15 + random() * 70, 2 + random() * 2, random, 0.6);
+                    r.fillStyle = 'rgba(255,255,255,0.5)'; r.fillRect(x - 3, py + dy, 6, 60);
+                }
+            }
+        }
+        const offset = (k % 2) * butt / 2;
+        for (let x = offset; x < 16; x += butt) {
+            const px = x * PX, top = yPx(y + strake);
+            c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(px, top, 2, py - top);
+            b.fillStyle = '#5a5a5a'; b.fillRect(px, top, 2, py - top);
+            if (py < wl && random() < 0.35) rustStreak(c, px, py - 4, 30 + random() * 100, 3 + random() * 3, random, 0.7);
+        }
+    }
+    // Scuppers and freeing ports high on the side: long rust runs.
+    for (let x = random() * 200; x < W; x += 140 + random() * 260) {
+        const y = yPx(3.7 + random() * 1.2);
+        rustStreak(c, x, y, 100 + random() * 220, 5 + random() * 5, random, 0.75);
+    }
+    // Paint chipped back to primer, mostly high up where lines and fenders rub.
+    for (let k = 0; k < 520; k++) {
+        const nearSeam = random() < 0.6;
+        const y = nearSeam ? seams[Math.floor(random() * seams.length)] - random() * 18 : yPx(3.0 + Math.pow(random(), 0.6) * 3.0);
+        if (y > wl) continue;
+        chip(c, random() * W, y, 1 + Math.pow(random(), 3) * 7, random, b);
+    }
+    // Fender scuffs: pale horizontal rubs.
+    for (let k = 0; k < 30; k++) {
+        const x = random() * W, y = yPx(3.0 + random() * 1.6), w = 80 + random() * 260;
+        const g = c.createLinearGradient(x, 0, x + w, 0);
+        g.addColorStop(0, 'rgba(160,150,135,0)'); g.addColorStop(0.5, 'rgba(160,150,135,0.22)'); g.addColorStop(1, 'rgba(160,150,135,0)');
+        c.fillStyle = g; c.fillRect(x, y, w, 5 + random() * 10);
+    }
+
+    // Waterline: a band of weed and slime, a salt and scum line above it,
+    // barnacles thickening towards it from below.
+    const weedTop = wl - 0.14 * PX, weedBottom = wl + 0.38 * PX;
+    for (let x = 0; x < W; x += 2) {
+        const top = weedTop + Math.sin(x * 0.013) * 5 + (random() - 0.5) * 8;
+        const g = c.createLinearGradient(0, top, 0, weedBottom + random() * 20);
+        g.addColorStop(0, 'rgba(70,72,38,0)'); g.addColorStop(0.15, 'rgba(66,70,36,0.85)');
+        g.addColorStop(0.6, 'rgba(48,56,30,0.8)'); g.addColorStop(1, 'rgba(48,56,30,0)');
+        c.fillStyle = g; c.fillRect(x, top, 2, weedBottom - top + 20);
+    }
+    c.fillStyle = 'rgba(190,185,170,0.35)'; c.fillRect(0, weedTop - 10, W, 4);
+    c.fillStyle = 'rgba(190,185,170,0.15)'; c.fillRect(0, weedTop - 22, W, 8);
+    const slime = c.createLinearGradient(0, wl, 0, wl + 1.2 * PX);
+    slime.addColorStop(0, 'rgba(58,62,40,0.55)'); slime.addColorStop(1, 'rgba(58,62,40,0)');
+    c.fillStyle = slime; c.fillRect(0, wl, W, 1.2 * PX);
+    for (let k = 0; k < 2600; k++) {
+        const y = wl + 0.05 * PX + Math.pow(random(), 3) * (H - wl);
+        const x = random() * W, rr = 0.6 + Math.pow(random(), 2) * 2.2;
+        c.fillStyle = `rgba(${165 + random() * 30},${160 + random() * 25},${145},${0.18 + random() * 0.22})`;
+        c.beginPath(); c.arc(x, y, rr, 0, Math.PI * 2); c.fill();
+        b.fillStyle = 'rgba(210,210,210,0.6)'; b.beginPath(); b.arc(x, y, rr, 0, Math.PI * 2); b.fill();
+    }
+
+    // Roughness: paint semi-gloss, rust, weed and antifouling rough.
+    r.globalCompositeOperation = 'source-over';
+    r.fillStyle = '#8c8c8c'; r.fillRect(0, 0, W, wl);
+    r.fillStyle = '#cfcfcf'; r.fillRect(0, wl, W, H - wl);
+    r.fillStyle = '#ececec'; r.fillRect(0, weedTop, W, weedBottom - weedTop);
+    noiseFill(c, W, H, 12, 304);
+    noiseFill(b, W, H, 16, 305);
+    noiseFill(r, W, H, 20, 306);
+    return { colour, bump, rough };
+}
+
+// The deckhouse sides, 4 m long by 2.4 m from 0.3 m below the deck line:
+// grime splashed up from the deck, streaks down from the roof edge, rust
+// at the rivets of the lower seam.
+function drawWeatheredDeckhouse(colour = '#4a4339') {
+    const W = 4 * PX * 2, H = Math.round(2.4 * PX * 2);
+    const canvas = canvasOf(W, H), c = canvas.getContext('2d');
+    const random = seededRandom(401);
+    c.fillStyle = colour; c.fillRect(0, 0, W, H);
+    blotches(c, W, H, 70, ['rgba(255,250,235,0.05)', 'rgba(0,0,0,0.14)'], 402, [30, 160]);
+    // Streaks from the roof edge (canvas top).
+    for (let x = 0; x < W; x += 6 + random() * 24) {
+        const len = 40 + random() * H * 0.6;
+        const dark = random() < 0.7;
+        const g = c.createLinearGradient(0, 0, 0, len);
+        g.addColorStop(0, dark ? 'rgba(10,8,6,0.35)' : 'rgba(200,195,180,0.18)');
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle = g; c.fillRect(x, 0, 2 + random() * 5, len);
+    }
+    // Splash zone at the bottom.
+    const splash = c.createLinearGradient(0, H, 0, H - 0.7 * PX * 2);
+    splash.addColorStop(0, 'rgba(30,22,14,0.6)'); splash.addColorStop(1, 'rgba(30,22,14,0)');
+    c.fillStyle = splash; c.fillRect(0, H - 0.7 * PX * 2, W, 0.7 * PX * 2);
+    // Lower seam with rivets and rust.
+    const seam = H - 0.45 * PX * 2;
+    c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(0, seam, W, 2);
+    for (let x = 4; x < W; x += 0.075 * PX * 2) {
+        c.fillStyle = 'rgba(20,18,16,0.6)'; c.beginPath(); c.arc(x, seam - 8, 2.4, 0, Math.PI * 2); c.fill();
+        if (random() < 0.08) rustStreak(c, x, seam - 8, 20 + random() * 60, 3, random, 0.6);
+    }
+    for (let k = 0; k < 60; k++) chip(c, random() * W, random() * H, 1 + Math.pow(random(), 3) * 4, random);
+    noiseFill(c, W, H, 9, 403);
+    return canvas;
+}
+
+// Funnel: heat-faded body, a sooty black top, soot and rust running down
+// under it, rivet bands, grime at the foot.
+function drawWeatheredFunnel(colour = '#c4a165', topFraction = 0.17) {
+    const W = 512, H = 1024, top = Math.round(H * topFraction);
+    const canvas = canvasOf(W, H), c = canvas.getContext('2d');
+    const random = seededRandom(501);
+    c.fillStyle = colour; c.fillRect(0, 0, W, H);
+    // Faded towards the top by the heat.
+    const fade = c.createLinearGradient(0, top, 0, H);
+    fade.addColorStop(0, 'rgba(230,200,180,0.22)'); fade.addColorStop(0.5, 'rgba(230,200,180,0.06)'); fade.addColorStop(1, 'rgba(0,0,0,0.12)');
+    c.fillStyle = fade; c.fillRect(0, top, W, H - top);
+    blotches(c, W, H, 50, ['rgba(255,255,255,0.05)', 'rgba(0,0,0,0.12)'], 502, [20, 90]);
+    // Black top, sooty and a little rusty.
+    c.fillStyle = '#121212'; c.fillRect(0, 0, W, top);
+    blotches(c, W, top, 40, ['rgba(80,50,30,0.25)', 'rgba(40,40,40,0.3)'], 503, [10, 60]);
+    // Soot and rust running down from it.
+    for (let x = 0; x < W; x += 4 + random() * 14) {
+        const len = 30 + random() * 260, rust = random() < 0.25;
+        const g = c.createLinearGradient(0, top, 0, top + len);
+        g.addColorStop(0, rust ? 'rgba(120,55,25,0.55)' : 'rgba(15,15,15,0.55)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle = g; c.fillRect(x, top, 2 + random() * 6, len);
+    }
+    // Rivet bands where the funnel rings join.
+    for (const v of [0.3, 0.52, 0.74]) {
+        const y = Math.round(H * v);
+        c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(0, y, W, 3);
+        for (let x = 3; x < W; x += 9) { c.fillStyle = 'rgba(0,0,0,0.4)'; c.beginPath(); c.arc(x, y - 6, 1.8, 0, Math.PI * 2); c.fill(); }
+        for (let k = 0; k < 6; k++) rustStreak(c, random() * W, y, 20 + random() * 80, 3, random, 0.6);
+    }
+    const foot = c.createLinearGradient(0, H, 0, H - 120);
+    foot.addColorStop(0, 'rgba(20,15,10,0.5)'); foot.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = foot; c.fillRect(0, H - 120, W, 120);
+    noiseFill(c, W, H, 9, 504);
+    return canvas;
+}
+
+// Deck planking, sun-bleached to silver grey, dirt in the seams, stains.
+function drawWeatheredDeck() {
+    const W = 8 * PX, H = 4 * PX;
+    const colour = canvasOf(W, H), bump = canvasOf(W, H);
+    const c = colour.getContext('2d'), b = bump.getContext('2d');
+    const random = seededRandom(601);
+    const plank = 0.14 * PX;
+    b.fillStyle = '#909090'; b.fillRect(0, 0, W, H);
+    for (let y = 0; y < H; y += plank) {
+        let x = -random() * 5 * PX;
+        while (x < W) {
+            const len = (4 + random() * 3) * PX;
+            const t = 128 + random() * 34;
+            c.fillStyle = `rgb(${t + 6},${t + 2},${t - 8})`;
+            c.fillRect(x, y, len, plank);
+            for (let gk = 0; gk < 16; gk++) {
+                c.strokeStyle = `rgba(${70 + random() * 30},${66 + random() * 25},${58},${0.12 + random() * 0.15})`;
+                c.lineWidth = 0.8 + random();
+                c.beginPath();
+                const gy = y + random() * plank;
+                c.moveTo(x, gy);
+                for (let gx = x; gx < x + len; gx += 40) c.lineTo(gx, gy + Math.sin(gx * 0.01 + gk) * 1.4);
+                c.stroke();
+            }
+            c.fillStyle = '#2b2620'; c.fillRect(x, y, 3, plank);
+            b.fillStyle = '#404040'; b.fillRect(x, y, 3, plank);
+            x += len;
+        }
+        c.fillStyle = '#26211b'; c.fillRect(0, y, W, 3);
+        b.fillStyle = '#3c3c3c'; b.fillRect(0, y, W, 3);
+    }
+    // Dirt, oil and rust stains.
+    blotches(c, W, H, 70, ['rgba(60,50,38,0.22)', 'rgba(110,60,30,0.16)', 'rgba(220,215,200,0.08)'], 602, [10, 90]);
+    noiseFill(c, W, H, 14, 603);
+    noiseFill(b, W, H, 12, 604);
+    return { colour, bump };
+}
+
+// Black-painted steel fittings: bitts, bows, rails, fittings. 2 m square.
+function drawRustyBlack() {
+    const S = 512, canvas = canvasOf(S, S), c = canvas.getContext('2d');
+    const random = seededRandom(701);
+    c.fillStyle = '#1e1d1c'; c.fillRect(0, 0, S, S);
+    blotches(c, S, S, 60, ['rgba(70,64,58,0.2)', 'rgba(0,0,0,0.3)'], 702, [10, 60]);
+    for (let k = 0; k < 90; k++) chip(c, random() * S, random() * S, 1 + Math.pow(random(), 3) * 5, random);
+    for (let k = 0; k < 18; k++) rustStreak(c, random() * S, random() * S, 20 + random() * 90, 2 + random() * 2, random, 0.55);
+    noiseFill(c, S, S, 14, 703);
+    return canvas;
+}
+
+// Off-white paint gone grubby: the boat, rails, lifebuoys, sidelight screens.
+function drawGrimyWhite() {
+    const S = 512, canvas = canvasOf(S, S), c = canvas.getContext('2d');
+    const random = seededRandom(801);
+    c.fillStyle = '#d9d4c6'; c.fillRect(0, 0, S, S);
+    blotches(c, S, S, 60, ['rgba(120,110,90,0.14)', 'rgba(255,255,255,0.10)'], 802, [10, 80]);
+    for (let x = 0; x < S; x += 6 + random() * 20) {
+        const len = 20 + random() * 140, g = c.createLinearGradient(0, 0, 0, len);
+        g.addColorStop(0, 'rgba(90,80,62,0.22)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle = g; c.fillRect(x, random() * S, 2 + random() * 3, len);
+    }
+    for (let k = 0; k < 12; k++) rustStreak(c, random() * S, random() * S, 20 + random() * 70, 2 + random() * 2, random, 0.45);
+    noiseFill(c, S, S, 10, 803);
+    return canvas;
+}
+
+// A soft, bluish overcast all round, for some sheen on the paint and steel
+// outside (the wheelhouse has its own).
+let exteriorEnv = null;
+function exteriorEnvironment(renderer) {
+    if (exteriorEnv || !renderer) return exteriorEnv;
+    const scene = new THREE.Scene();
+    const canvas = canvasOf(8, 256), c = canvas.getContext('2d');
+    const g = c.createLinearGradient(0, 0, 0, 256);
+    g.addColorStop(0, '#cfe0e6'); g.addColorStop(0.45, '#7f9eab'); g.addColorStop(0.55, '#4d6870'); g.addColorStop(1, '#2a3330');
+    c.fillStyle = g; c.fillRect(0, 0, 8, 256);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    scene.add(new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide })));
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    exteriorEnv = pmrem.fromScene(scene, 0.04).texture;
+    pmrem.dispose();
+    return exteriorEnv;
+}
+
+function applyExteriorEnvironment(mats, renderer) {
+    const env = exteriorEnvironment(renderer);
+    if (!env) return;
+    const set = (m, k) => { if (m && !m.envMap) { m.envMap = env; m.envMapIntensity = k; m.needsUpdate = true; } };
+    set(mats.hull, 0.45); set(mats.deckhouse, 0.4); set(mats.paint, 0.4); set(mats.funnel, 0.35);
+    set(mats.deck, 0.3); set(mats.blackSteel, 0.5); set(mats.wire, 0.4); set(mats.boat, 0.35);
+    set(mats.mast, 0.3); set(mats.rope, 0.15); set(mats.name, 0.3); set(mats.weatheredTimber, 0.2);
 }
 
 function drawName(text) {
