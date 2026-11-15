@@ -1,0 +1,125 @@
+{
+  "name": "Euro",
+  "seabedDepth": 45,
+  "seabedDepthNote": "45 m from the SOE dive calendar. Some dive reports give about 50 m.",
+  "built": "Built 1897 by Gourlay Bros, Dundee",
+  "pois": [
+    {
+      "id": "bow",
+      "title": "The Euro",
+      "position": [
+        -147.34,
+        30.46,
+        178.78
+      ],
+      "text": "A steam tug, 130 by 22.5 by 12.2 feet. The register describes a screw steamer with one deck and a round stern, rigged as a fore-and-aft schooner. She worked for the Adelaide Steamship Company for most of her life, then for Howard Smith's Australian Steamships in Melbourne. Stripped and scuttled in the Ships' Graveyard outside Port Phillip Heads on 10 June 1948. She lies on her port side.",
+      "source": "Victorian Heritage Register, S247",
+      "photo": "/assets/wrecks/euro/bow.webp",
+      "photoCredit": "Picture rendered from the SOE scan"
+    },
+    {
+      "id": "boiler",
+      "title": "Boiler",
+      "position": [
+        -126.84,
+        24.54,
+        181.07
+      ],
+      "approximate": true,
+      "text": "The boiler raised steam for the engine. Dive reports place it forward of the engine room.",
+      "source": "Dive reports (Aquability; The Scuba Doctor)",
+      "photo": "/assets/wrecks/euro/boiler.webp",
+      "photoCredit": "Picture rendered from the SOE scan"
+    },
+    {
+      "id": "scuttle",
+      "title": "Scuttling hole",
+      "position": [
+        -121.6,
+        29.06,
+        173.86
+      ],
+      "approximate": true,
+      "text": "The Euro was sunk on 10 June 1948. Dive reports place the blast hole on the starboard side, between the engine and the boiler. The anchor on the main deck was not her own: it secured the tow rope for scuttling.",
+      "source": "Dive reports (Aquability; The Scuba Doctor)",
+      "photo": "/assets/wrecks/euro/scuttle.webp",
+      "photoCredit": "Picture rendered from the SOE scan"
+    },
+    {
+      "id": "engine",
+      "title": "Engine room",
+      "position": [
+        -117.58,
+        23.87,
+        177.68
+      ],
+      "approximate": true,
+      "text": "The Euro was driven by a single screw. Dive reports describe the triple-expansion steam engine, still in place.",
+      "source": "Dive reports (Aquability; The Scuba Doctor); Victorian Heritage Register, S247",
+      "photo": "/assets/wrecks/euro/engine.webp",
+      "photoCredit": "Picture rendered from the SOE scan"
+    },
+    {
+      "id": "stern",
+      "title": "Stern",
+      "position": [
+        -110.03,
+        27.55,
+        173.13
+      ],
+      "text": "The register records a round stern. Dive reports note the steering quadrant here.",
+      "source": "Dive reports (Aquability; The Scuba Doctor); Victorian Heritage Register, S247",
+      "photo": "/assets/wrecks/euro/stern.webp",
+      "photoCredit": "Picture rendered from the SOE scan"
+    }
+  ],
+  "ghost": {
+    "label": "As built, indicative",
+    "note": "Shape drawn from the registered dimensions (130 x 22.5 x 12.2 ft) and fitted to the scan. Funnel, wheelhouse and masts are indicative, not from plans.",
+    "keel": [
+      -127.009,
+      25.353,
+      173.008
+    ],
+    "forward": [
+      -0.986,
+      0.114,
+      0.121
+    ],
+    "up": [
+      0.101,
+      -0.161,
+      0.982
+    ],
+    "starboard": [
+      0.131,
+      0.98,
+      0.147
+    ],
+    "stern": -17.58,
+    "bow": 23.65,
+    "beam": 6.86,
+    "depth": 3.72,
+    "funnel": {
+      "at": -1.0,
+      "radius": 0.7,
+      "height": 5.0
+    },
+    "wheelhouse": {
+      "from": 4.0,
+      "to": 7.0,
+      "width": 3.0,
+      "height": 2.3
+    },
+    "masts": [
+      {
+        "at": 14.0,
+        "height": 14.0
+      },
+      {
+        "at": -11.0,
+        "height": 12.0
+      }
+    ]
+  }
+}

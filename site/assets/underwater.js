@@ -94,9 +94,10 @@ export function addUnderwater(viewer) {
         if (scene.background !== background) scene.background = background;
         if (scene.fog !== fog) scene.fog = fog;
 
-        const camera = renderer.xr.isPresenting
-            ? renderer.xr.getCamera()
-            : below.cameraManager.camera;
+        // In VR three copies the headset pose into this camera, inside the
+        // BelowJS rig. renderer.xr.getCamera() is still the pose in the room
+        // at this point, which would centre the snow on the wrong spot.
+        const camera = below.cameraManager.camera;
         camera.getWorldPosition(cameraPosition);
 
         const controls = below.cameraManager.getControls?.();

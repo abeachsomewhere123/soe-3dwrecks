@@ -13,13 +13,14 @@
     {
         "imports": {
             "three": "https://cdn.jsdelivr.net/npm/three@0.179.1/+esm",
-            "belowjs": "/assets/belowjs-dev/belowjs.js?v=8349153"
+            "belowjs": "/assets/belowjs-dev/belowjs.js?v=086e072"
         }
     }
     </script>
-    <!-- Test site: BelowJS built from abeachsomewhere123/belowjs 8349153 (seabed passthrough). Live uses belowjs@1.8.0 from the CDN. -->
-    <link rel="stylesheet" href="/assets/belowjs-dev/belowjs.css?v=8349153">
+    <!-- Test site: BelowJS built from abeachsomewhere123/belowjs 086e072 (seabed passthrough). Live uses belowjs@1.8.0 from the CDN. -->
+    <link rel="stylesheet" href="/assets/belowjs-dev/belowjs.css?v=086e072">
     <link rel="stylesheet" href="/assets/viewer.css">
+    <link rel="stylesheet" href="/assets/wreck-extras.css">
 
     <style>
         html, body {
@@ -92,6 +93,7 @@
         import { fitStartViewToScreen } from '/assets/fit-view.js';
         import { addVrStarts } from '/assets/xr-start.js';
         import { addUnderwater } from '/assets/underwater.js';
+        import { addWreckExtras } from '/assets/wreck-extras.js';
 
         const statusEl = document.getElementById('status');
 
@@ -180,6 +182,10 @@
             fitStartViewToScreen(viewer);
             // Water, seabed and marine snow. ?water=off shows the bare scan.
             if (params.get('water') !== 'off') addUnderwater(viewer);
+            // Points of interest, depth gauge and then and now, for wrecks
+            // with a file in /assets/wrecks/. Added after the water so the
+            // model is already level when it measures the sand.
+            addWreckExtras(viewer);
             addBackLink();
             showXrPrompt(viewer, params.get('mode'));
 

@@ -11163,7 +11163,7 @@ class bh {
   /** Just before rendering: match the backdrop to the water and thin the fog. */
   beforeRender() {
     if (!this.active) return;
-    this.renderer.xr.getCamera().getWorldPosition(this.backdrop.position);
+    (this.camera || this.renderer.xr.getCamera()).getWorldPosition(this.backdrop.position);
     const t = this.camera?.far || this.options.backdropRadius * 2;
     this.backdrop.scale.setScalar(Math.min(t * 0.9, this.options.backdropRadius * 4) / this.options.backdropRadius);
     const s = this.backdrop.material, i = this.scene.background;

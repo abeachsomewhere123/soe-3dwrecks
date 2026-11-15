@@ -23,6 +23,16 @@ On `dev`, `/view/` loads BelowJS from `site/assets/belowjs-dev/`, a build of the
 
 Before merging `dev` into `main`, either publish a BelowJS release with this feature and switch `/view/` to it, or leave `site/assets/belowjs-dev/` and the `/view/` import map out of the merge.
 
+## Wreck extras (test site only)
+
+`site/assets/wreck-extras.js` adds three things to `/view/` for any model with a data file at `site/assets/wrecks/<model key>.json` (the key is the one in `?model=`):
+
+- **Points of interest.** Numbered markers. In the browser, click one or pick it from the "Explore the wreck" list; in VR, look at one for about a second. A card shows what it is, the build date, a picture and the source. Look at the same marker again to close the VR card.
+- **Depth gauge.** In VR, a watch face on the left controller shows depth, maximum depth, dive time and ascent rate (red above 9 m/min). Depth is `seabedDepth` from the data file less your height above the sand. The browser shows depth only. It is not a dive computer and shows no decompression information.
+- **Then and now.** A ghost of the ship as built, drawn from the registered dimensions and placed on the scan. The browser has a slider; in VR, click either thumbstick to fade between the wreck and the ghost. It is labelled indicative.
+
+The data file holds marker positions in the `.glb` file's own coordinates (BelowJS centres the model and `underwater.js` levels it; the markers move with it), the card text with sources, and the ghost hull's keel point, forward, up and starboard directions and dimensions. `euro.json` is the worked example; its pictures in `site/assets/wrecks/euro/` are renders of the scan. Wrecks without a file show none of this.
+
 ## Tools
 
 | Page | What it does |
