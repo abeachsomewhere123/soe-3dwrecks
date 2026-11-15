@@ -54,6 +54,9 @@ export function addWreckExtras(viewer) {
     let tween = null;          // desktop camera fly-to
     const dive = { start: 0, max: 0, smoothed: null, rate: 0, lastDraw: 0 };
     const stickWasDown = new Map();
+    const scaleTmp = new THREE.Vector3();
+    // Tabletop AR (the /ar/ page), as opposed to VR with seabed passthrough.
+    const isTableAR = () => below.arManager?.isARPresenting === true;
     const handedness = new Map();
 
     // Know which controller is in which hand, even before BelowJS does.
@@ -273,7 +276,7 @@ export function addWreckExtras(viewer) {
     function updateInside() {
         const b = state.ghost?.inside?.bounds;
         let inside = false;
-        if (b && blend > 0.5) {
+        if (b && blend > 0.5 && !isTableAR()) {
             shipEye.copy(eye).applyMatrix4(state.model.matrixWorld.clone().invert());
             const p = state.ghost.fromModel(shipEye);
             inside = p.x > b.x0 && p.x < b.x1 && p.y > b.y0 && p.y < b.y1 && Math.abs(p.z) < b.z;
@@ -332,12 +335,21 @@ export function addWreckExtras(viewer) {
         // Markers keep a readable size: a fixed size on screen in the
         // browser, and at least a set angle across in VR. They fade out up
         // close so they never fill the view.
+        // In tabletop AR the wreck is a model on a table, so sizes and
+        // distances shrink with it; marker sizes are set in world metres and
+        // converted to the model's (scaled) units.
+        const table = isTableAR();
+        const modelScale = state.model.getWorldScale(scaleTmp).x || 1;
         const perPixel = xr ? 0 : 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov || 50) / 2) / Math.max(1, renderer.domElement.clientHeight);
         for (const m of state.markers) {
             m.getWorldPosition(markerWorld);
             const d = markerWorld.distanceTo(eye);
-            m.scale.setScalar(xr ? Math.max(MARKER_SIZE, d * VR_MARKER_ANGLE) : d * perPixel * DESKTOP_MARKER_PX);
-            m.material.opacity = THREE.MathUtils.clamp((d - 0.6) / 1.5, 0, 1) * (0.95 - 0.5 * blend);
+            const size = table ? Math.max(0.022, d * VR_MARKER_ANGLE * 0.7)
+                : xr ? Math.max(MARKER_SIZE, d * VR_MARKER_ANGLE)
+                : d * perPixel * DESKTOP_MARKER_PX;
+            m.scale.setScalar(size / modelScale);
+            const near = table ? THREE.MathUtils.clamp((d - 0.04) / 0.1, 0, 1) : THREE.MathUtils.clamp((d - 0.6) / 1.5, 0, 1);
+            m.material.opacity = near * (0.95 - 0.5 * blend);
         }
 
         // Depth: seabed depth less the eyes' height above the sand plane.
@@ -347,8 +359,10 @@ export function addWreckExtras(viewer) {
         updateDive(depth, dt);
 
         if (xr) {
-            updateGaze(dt);
-            updateGauge(depth);
+            updateGaze(dt, modelScale);
+            // No depth gauge on a tabletop model.
+            if (table) gauge.mesh.removeFromParent();
+            else updateGauge(depth);
         } else {
             ui.setDepth(depth, state.data.seabedDepth);
         }
@@ -394,16 +408,16 @@ export function addWreckExtras(viewer) {
             .applyQuaternion(rig.getWorldQuaternion(rigQuaternion)).normalize();
     }
 
-    function updateGaze(dt) {
+    function updateGaze(dt, modelScale = 1) {
         let best = null;
         let bestAngle = GAZE_ANGLE;
         for (const m of state.markers) {
             m.getWorldPosition(markerWorld);
             toMarker.subVectors(markerWorld, eye);
             const d = toMarker.length();
-            if (d > GAZE_RANGE || d < 0.3) continue;
+            if (d > GAZE_RANGE || d < (modelScale < 0.5 ? 0.05 : 0.3)) continue;
             // Allow a bigger target for markers that are close.
-            const angle = forward.angleTo(toMarker) - Math.atan(MARKER_SIZE / 2 / d) * 0.5;
+            const angle = forward.angleTo(toMarker) - Math.atan((m.scale.x * modelScale) / 2 / d) * 0.5;
             if (angle < bestAngle) { bestAngle = angle; best = m; }
         }
 
@@ -445,6 +459,7 @@ export function addWreckExtras(viewer) {
     function updateGauge(depth) {
         const grip = findGrip();
         if (!grip) return;
+        if (!grip.parent) scene.add(grip);   // BelowJS only adds grips to the scene in VR
         if (gauge.mesh.parent !== grip) grip.add(gauge.mesh);
         const now = performance.now();
         if (now - dive.lastDraw < 250) return;

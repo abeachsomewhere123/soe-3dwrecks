@@ -19,6 +19,7 @@
     </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/belowjs@1.8.0/dist/belowjs.css">
     <link rel="stylesheet" href="/assets/viewer.css">
+    <link rel="stylesheet" href="/assets/wreck-extras.css">
 
     <style>
         html, body {
@@ -97,6 +98,8 @@
         import { fitStartViewToScreen } from '/assets/fit-view.js';
         import { placeArModel } from '/assets/xr-start.js';
         import { addArTablePlacement } from '/assets/ar-table.js';
+        import { addWreckExtras } from '/assets/wreck-extras.js';
+        import { addVrExit } from '/assets/vr-exit.js';
 
         const statusEl = document.getElementById('status');
 
@@ -191,6 +194,12 @@
 
             placeArModel(viewer);
             addArTablePlacement(viewer);
+            // The reconstruction (then and now; click a thumbstick in AR) and
+            // the markers, for wrecks with a file in /assets/wrecks/. Added
+            // after the table placement, which levels the model first.
+            addWreckExtras(viewer);
+            // Exit button on the right wrist.
+            addVrExit(viewer);
             fitStartViewToScreen(viewer);
             addBackLink();
             showXrPrompt(viewer, params.get('mode'));

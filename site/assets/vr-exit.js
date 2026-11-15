@@ -1,6 +1,6 @@
-// An "Exit VR" button on the right wrist, for every model. Look at it for a
-// moment, or touch it with the left controller, and the VR session ends.
-// (The headset's own menu button still works too.)
+// An "Exit VR" button on the right wrist, for every model, in VR and AR.
+// Look at it for a moment, or touch it with the left controller, and the
+// session ends. (The headset's own menu button still works too.)
 
 import * as THREE from 'three';
 
@@ -44,6 +44,8 @@ export function addVrExit(viewer) {
         if (!renderer.xr.isPresenting || ended) return;
         const right = gripFor('right');
         if (!right) return;
+        // BelowJS only puts controller grips in the scene in VR; in AR, add it.
+        if (!right.parent) below.sceneManager.scene.add(right);
         if (button.mesh.parent !== right) right.add(button.mesh);
 
         // Head pose in the scene: the headset pose in the room, placed by the
@@ -63,12 +65,13 @@ export function addVrExit(viewer) {
         const looking = toButton.length() < GAZE_RANGE && forward.angleTo(toButton) < GAZE_ANGLE;
 
         const left = gripFor('left');
+        if (left && !left.parent) below.sceneManager.scene.add(left);
         const touching = left ? left.getWorldPosition(other).distanceTo(target) < TOUCH_DISTANCE : false;
 
         const dt = Math.min(deltaTime || 0.016, 0.1);
         const need = touching ? TOUCH_SECONDS : GAZE_SECONDS;
         held = looking || touching ? held + dt / need : Math.max(0, held - dt * 2);
-        button.draw(Math.min(1, held));
+        button.draw(Math.min(1, held), below.arManager?.isARPresenting ? 'EXIT AR' : 'EXIT VR');
         if (held >= 1) {
             ended = true;
             renderer.xr.getSession()?.end();
@@ -91,11 +94,11 @@ function makeButton() {
     mesh.position.set(0, 0.035, 0.09);
     mesh.rotation.set(-Math.PI / 2 + 0.5, 0, 0);
 
-    let last = -1;
-    const draw = (progress) => {
-        const step = Math.round(progress * 40);
-        if (step === last) return;
-        last = step;
+    let last = '';
+    const draw = (progress, label = 'EXIT VR') => {
+        const key = `${Math.round(progress * 40)}|${label}`;
+        if (key === last) return;
+        last = key;
         const c = canvas.getContext('2d');
         const W = canvas.width, H = canvas.height, r = 36;
         c.clearRect(0, 0, W, H);
@@ -118,7 +121,7 @@ function makeButton() {
         c.textAlign = 'center';
         c.textBaseline = 'middle';
         c.font = '700 64px -apple-system, "Segoe UI", Roboto, sans-serif';
-        c.fillText('EXIT VR', W / 2, H / 2 - 10);
+        c.fillText(label, W / 2, H / 2 - 10);
         c.font = '500 26px -apple-system, "Segoe UI", Roboto, sans-serif';
         c.fillStyle = '#ffd0cb';
         c.fillText('look here or touch', W / 2, H - 30);
