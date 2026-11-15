@@ -89,7 +89,7 @@
   ],
   "ghost": {
     "label": "As built, indicative",
-    "note": "Hull sized from the registered dimensions (130 x 22.5 x 12.2 ft) and fitted to the scan: she lies about 36 degrees to port, easing to about 30 degrees at the bow. The deckhouse, wheelhouse, funnel, masts and towing gear are indicative, laid out like other steam tugs of the period (Waratah, Forceful, Wattle, Yelta), not from the Euro's plans.",
+    "note": "Hull sized from the registered dimensions (130 x 22.5 x 12.2 ft) and fitted to the scan: she lies about 36 degrees to port, easing to about 30 degrees at the bow. The deck layout follows British-built steam tugs of the period: towing hook amidships abaft the funnel, a clear after deck under towing bows, steering quadrant on deck at the stern. Positions and sizes are indicative, not from the Euro's plans.",
     "listToPort": 36.0,
     "keel": [
       -127.2396,
@@ -125,20 +125,15 @@
       "bowFullness": 1.8
     },
     "casing": {
-      "from": -11.0,
+      "from": -2.8,
       "to": 6.2,
       "width": 4.2,
       "height": 2.1,
-      "portholeSpacing": 1.8,
-      "skylight": {
-        "from": -8.6,
-        "to": -5.8,
-        "width": 1.8
-      },
+      "portholeSpacing": 1.6,
       "boat": {
-        "at": -3.0,
-        "length": 4.6,
-        "beam": 1.6
+        "at": -0.9,
+        "length": 3.6,
+        "beam": 1.5
       }
     },
     "wheelhouse": {
@@ -159,16 +154,17 @@
         "height": 13.0
       },
       {
-        "at": -9.6,
+        "at": -2.3,
         "height": 11.0
       }
     ],
     "towingArches": [
-      -13.0,
-      -15.2
+      -4.3,
+      -7.6,
+      -10.9,
+      -14.1
     ],
     "bitts": [
-      -11.9,
       19.6
     ],
     "twist": {
@@ -192,6 +188,29 @@
         0,
         -0.612
       ]
+    },
+    "afterCasing": {
+      "from": -9.6,
+      "to": -2.8,
+      "width": 3.0,
+      "height": 0.75,
+      "skylight": {
+        "from": -7.8,
+        "to": -4.6,
+        "width": 1.8
+      }
+    },
+    "towingHook": {
+      "at": -2.85,
+      "height": 1.45
+    },
+    "towingArchHeight": 1.95,
+    "quarterBitts": [
+      -15.9
+    ],
+    "steering": {
+      "quadrant": true,
+      "radius": 1.0
     }
   }
 }

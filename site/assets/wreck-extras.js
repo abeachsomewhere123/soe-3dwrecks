@@ -900,24 +900,85 @@ function makeGhost(g) {
         if (k === masts.length - 1 && masts.length > 1) bar(head, [masts[0].at, deck(masts[0].at) + masts[0].height * 0.85, 0], 0.014, mats.wire, 4);
     });
 
-    // Towing arches over the after deck, and towing bitts.
-    for (const x of g.towingArches || []) {
-        const hw = breadth(x) - 0.15, top = deck(x) + bulwark + 0.9;
-        const pts = [];
-        for (let k = 0; k <= 16; k++) {
-            const a = Math.PI * (k / 16);
-            pts.push([x, deck(x) + bulwark + (top - deck(x) - bulwark) * Math.sin(a), -hw * Math.cos(a)]);
+    // ── Towing gear ─────────────────────────────────────────────────
+    // As on British-built steam tugs of the period: the towing hook sits
+    // amidships, just abaft the funnel on the after end of the deckhouse, so
+    // the tug pivots about her middle under tow and a sideways pull is less
+    // likely to drag her over. Aft of it the deck is kept clear for the tow
+    // rope to sweep from side to side: only the low engine room casing and
+    // skylight, under arched towing bows that carry the rope clear of them
+    // and of the steering gear.
+    if (g.afterCasing) {
+        const c = g.afterCasing;
+        const base = deck((c.from + c.to) / 2);
+        box(c.from, c.to, base - 0.3, c.height + 0.3, c.width, mats.paint);
+        if (c.skylight) {
+            const k = c.skylight, top = base + c.height;
+            box(k.from, k.to, top, 0.42, k.width ?? 1.8, mats.timber);
+            // Glazed lights pitched like a roof.
+            for (const side of [-1, 1]) {
+                const pane = new THREE.PlaneGeometry(k.to - k.from - 0.1, (k.width ?? 1.8) / 2 + 0.05);
+                pane.rotateX(-Math.PI / 2 + side * 0.32).translate((k.from + k.to) / 2, top + 0.42 + 0.12, side * (k.width ?? 1.8) / 4);
+                addMesh(pane, mats.glass, 'given');
+            }
         }
-        tube(pts, 0.07, mats.blackSteel, 32);
     }
-    for (const b of g.bitts || []) {
+    const hook = g.towingHook;
+    if (hook) {
+        const y = deck(hook.at) + hook.height, x = hook.at;
+        // Towing beam across the after end of the deckhouse, with a plate.
+        addMesh(new THREE.BoxGeometry(0.3, 0.32, (g.casing?.width ?? 4) - 0.3).translate(x + 0.1, y, 0), mats.blackSteel);
+        addMesh(new THREE.BoxGeometry(0.22, 0.5, 0.36).translate(x - 0.05, y, 0), mats.blackSteel);
+        // Spring buffer and shank, then the slip hook, pointing aft.
+        addMesh(new THREE.CylinderGeometry(0.11, 0.11, 0.45, 16).rotateZ(Math.PI / 2).translate(x - 0.38, y, 0), mats.blackSteel);
+        for (let k = 0; k < 6; k++) {
+            addMesh(new THREE.TorusGeometry(0.115, 0.018, 6, 16).rotateY(Math.PI / 2).translate(x - 0.2 - k * 0.07, y, 0), mats.iron);
+        }
+        bar([x - 0.6, y, 0], [x - 1.05, y, 0], 0.045, mats.blackSteel, 10);
+        const curve = new THREE.TorusGeometry(0.16, 0.05, 10, 20, Math.PI * 1.35);
+        curve.rotateZ(Math.PI * 0.85).translate(x - 1.2, y - 0.02, 0);
+        addMesh(curve, mats.blackSteel);
+        addMesh(new THREE.SphereGeometry(0.06, 10, 8).translate(x - 1.05, y, 0), mats.blackSteel);   // release toggle
+    }
+    // Towing bows: arched beams from bulwark to bulwark over the after deck.
+    for (const x of g.towingArches || []) {
+        const hw = breadth(x) - 0.1, rail = deck(x) + bulwark, top = deck(x) + (g.towingArchHeight ?? 1.9);
+        const pts = [];
+        for (let k = 0; k <= 20; k++) {
+            const a = Math.PI * (k / 20);
+            pts.push([x, rail + (top - rail) * Math.sin(a), -hw * Math.cos(a)]);
+        }
+        tube(pts, 0.085, mats.blackSteel, 40);
+        for (const side of [-1, 1]) bar([x, deck(x), side * hw], [x, rail + 0.05, side * hw], 0.07, mats.blackSteel, 10);
+    }
+    // Bitts: pairs of bollards for mooring and making fast.
+    const bollards = (x, z) => {
+        for (const dx of [-0.32, 0.32]) {
+            addMesh(new THREE.CylinderGeometry(0.15, 0.17, 0.75, 16).translate(x + dx, deck(x) + 0.375, z), mats.blackSteel);
+            addMesh(new THREE.CylinderGeometry(0.22, 0.22, 0.05, 16).translate(x + dx, deck(x) + 0.77, z), mats.blackSteel);
+        }
+        addMesh(new THREE.BoxGeometry(1.0, 0.08, 0.42).translate(x, deck(x) + 0.04, z), mats.blackSteel);
+    };
+    for (const b of g.bitts || []) bollards(b, 0);
+    for (const q of g.quarterBitts || []) for (const side of [-1, 1]) bollards(q, side * (breadth(q) - 0.7));
+
+    // Steering quadrant on the rudder head, on deck at the stern, worked by
+    // rods and chains led forward along the sides from the wheelhouse.
+    if (g.steering?.quadrant) {
+        const qx = sternpost, qy = deck(qx) + 0.3, qr = g.steering.radius ?? 1.0, span = 0.75;
+        addMesh(new THREE.CylinderGeometry(0.12, 0.12, 0.55, 14).translate(qx, deck(qx) + 0.25, 0), mats.iron);   // rudder head
+        const sector = new THREE.CircleGeometry(qr, 20, Math.PI - span, span * 2);
+        sector.rotateX(-Math.PI / 2).translate(qx, qy, 0);
+        addMesh(sector, mats.iron);
+        const rim = new THREE.TorusGeometry(qr, 0.045, 8, 20, span * 2);
+        rim.rotateZ(Math.PI - span).rotateX(-Math.PI / 2).translate(qx, qy, 0);
+        addMesh(rim, mats.iron);
+        const toX = g.afterCasing?.to ?? g.casing?.from ?? qx + 10;
         for (const side of [-1, 1]) {
-            const geo = new THREE.CylinderGeometry(0.17, 0.17, 0.9, 16);
-            geo.translate(b, deck(b) + 0.45, side * 0.45);
-            addMesh(geo, mats.blackSteel);
-            const cap = new THREE.CylinderGeometry(0.24, 0.24, 0.06, 16);
-            cap.translate(b, deck(b) + 0.93, side * 0.45);
-            addMesh(cap, mats.blackSteel);
+            const end = [qx - Math.cos(span) * qr, qy, side * Math.sin(span) * qr];
+            const lead = [qx + 1.2, deck(qx + 1.2) + 0.2, side * (breadth(qx + 1.2) - 0.35)];
+            bar(end, lead, 0.022, mats.wire, 6);
+            bar(lead, [toX, deck(toX) + 0.2, side * (breadth(toX) - 0.35)], 0.022, mats.wire, 6);
         }
     }
 
@@ -975,6 +1036,7 @@ function makeGhost(g) {
             // once it is all the way in.
             const opaque = o >= 0.999;
             for (const m of materials) {
+                if (m === mats.glass) { m.opacity = 0.18 * o; continue; }   // glass stays see-through
                 if (m.transparent === opaque) { m.transparent = !opaque; m.needsUpdate = true; }
                 m.opacity = o;
             }
@@ -1033,7 +1095,7 @@ function shipMaterials(waterline) {
         wire: standard({ color: '#2b2b2b', roughness: 0.6, metalness: 0.4 }),
         brass: standard({ color: '#c09444', roughness: 0.35, metalness: 0.55 }),
         bronze: standard({ color: '#a8733f', roughness: 0.4, metalness: 0.55 }),
-        glass: standard({ color: '#1a2a33', roughness: 0.08, metalness: 0.4 }),
+        glass: standard({ color: '#a9c8d2', roughness: 0.04, metalness: 0.1, depthWrite: false }),
         boat: standard({ color: '#eeebe2', roughness: 0.5, metalness: 0 }),
         name: standard({ map: drawName('EURO'), alphaTest: 0.3, roughness: 0.6, metalness: 0 }),
         darkTimber: standard({ map: texture(timber, 1 / 2, 1 / 2), color: '#7a5a44', roughness: 0.4, metalness: 0 }),
