@@ -75,7 +75,7 @@
   ],
   "ghost": {
     "label": "As built, indicative",
-    "note": "Hull sized from the registered dimensions (130 x 22.5 x 12.2 ft) and fitted to the scan, which shows her listed about 36 degrees to port. The deckhouse, wheelhouse, funnel, masts and towing gear are indicative, laid out like other steam tugs of the period (Waratah, Forceful, Wattle, Yelta), not from the Euro's plans.",
+    "note": "Hull sized from the registered dimensions (130 x 22.5 x 12.2 ft) and fitted to the scan: she lies about 36 degrees to port, easing to about 30 degrees at the bow. The deckhouse, wheelhouse, funnel, masts and towing gear are indicative, laid out like other steam tugs of the period (Waratah, Forceful, Wattle, Yelta), not from the Euro's plans.",
     "listToPort": 36.0,
     "keel": [
       -127.2396,
@@ -106,7 +106,9 @@
       "bulwark": 0.85,
       "sheerBow": 1.3,
       "sheerStern": 0.4,
-      "counter": 2.6
+      "counter": 2.6,
+      "bowLength": 0.32,
+      "bowFullness": 1.8
     },
     "casing": {
       "from": -11.0,
@@ -154,6 +156,28 @@
     "bitts": [
       -11.9,
       19.6
-    ]
+    ],
+    "twist": {
+      "at": [
+        -17.58,
+        6.0,
+        23.65
+      ],
+      "roll": [
+        0,
+        0,
+        -6.3
+      ],
+      "up": [
+        0,
+        0,
+        0.383
+      ],
+      "starboard": [
+        0,
+        0,
+        -0.612
+      ]
+    }
   }
 }

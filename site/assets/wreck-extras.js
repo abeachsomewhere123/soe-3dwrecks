@@ -487,13 +487,40 @@ function makeGhost(g) {
     const midship = g.stern + 0.45 * L;
 
     // Plan: a round stern (half circle about the half beam), parallel body,
-    // and a fine bow.
-    const bowStart = g.bow - 0.42 * L;
+    // and a bow whose length and fullness are set in the data (a higher
+    // fullness keeps the beam further forward, as on a tug).
+    const bowStart = g.bow - (h.bowLength ?? 0.42) * L;
+    const bowFullness = h.bowFullness ?? 1.8;
     const breadth = (x) => {
         let f = 1;
         if (x < g.stern + halfBeam) f = Math.sqrt(Math.max(0, 1 - ((g.stern + halfBeam - x) / halfBeam) ** 2));
-        else if (x > bowStart) f = 1 - ((x - bowStart) / (g.bow - bowStart)) ** 1.8;
+        else if (x > bowStart) f = 1 - ((x - bowStart) / (g.bow - bowStart)) ** bowFullness;
         return halfBeam * Math.max(f, 0.015);
+    };
+
+    // The wreck's list changes along its length and the hull has shifted a
+    // little. g.twist gives, at stations along the hull, the change in list
+    // (degrees, more to port is positive) and the shift (up and starboard,
+    // metres) from the overall placement. Everything is bent to follow it.
+    const twist = g.twist;
+    const twistAt = (x) => {
+        if (!twist?.at?.length) return [0, 0, 0];
+        const at = twist.at;
+        let i = 0;
+        while (i < at.length - 2 && x > at[i + 1]) i++;
+        const t = THREE.MathUtils.clamp((x - at[i]) / (at[i + 1] - at[i] || 1), 0, 1);
+        const lerp = (arr) => arr[i] + (arr[i + 1] - arr[i]) * t;
+        return [THREE.MathUtils.degToRad(lerp(twist.roll)), lerp(twist.up), lerp(twist.starboard)];
+    };
+    const warp = (arr) => {
+        for (let k = 0; k < arr.length; k += 3) {
+            const [d, du, ds] = twistAt(arr[k]);
+            if (!d && !du && !ds) continue;
+            const y = arr[k + 1], z = arr[k + 2], cos = Math.cos(d), sin = Math.sin(d);
+            arr[k + 1] = du + y * cos + z * sin;
+            arr[k + 2] = ds - y * sin + z * cos;
+        }
+        return arr;
     };
     // Deck at side with sheer rising to both ends, more at the bow.
     const deck = (x) => deckSide + (x > midship
@@ -542,7 +569,7 @@ function makeGhost(g) {
     grid(2, (x, j) => [x, deck(x), (j ? 1 : -1) * breadth(x)]);
 
     const shell = new THREE.BufferGeometry();
-    shell.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    shell.setAttribute('position', new THREE.Float32BufferAttribute(warp(positions), 3));
     shell.setIndex(index);
     shell.computeVertexNormals();
 
@@ -573,12 +600,13 @@ function makeGhost(g) {
     // Fittings: boxes and cylinders share the ghost surface; their edges
     // are drawn as lines.
     const add = (geo, edges = true) => {
-        geo.computeVertexNormals();
-        meshes.push(new THREE.Mesh(geo, surfaceMaterial));
         if (edges) {
             const e = new THREE.EdgesGeometry(geo, 25).attributes.position.array;
             for (let k = 0; k < e.length; k++) lines.push(e[k]);
         }
+        warp(geo.attributes.position.array);
+        geo.computeVertexNormals();
+        meshes.push(new THREE.Mesh(geo, surfaceMaterial));
     };
     const box = (x0, x1, y0, height, width) => {
         const geo = new THREE.BoxGeometry(x1 - x0, height, width);
@@ -710,14 +738,14 @@ function makeGhost(g) {
     }
 
     const lineGeometry = new THREE.BufferGeometry();
-    lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(lines, 3));
+    lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(warp(lines), 3));
     const lineMaterial = new THREE.LineBasicMaterial({ color: GHOST_COLOUR, transparent: true, depthWrite: false, fog: false });
     const outline = new THREE.LineSegments(lineGeometry, lineMaterial);
     for (const m of meshes) m.raycast = () => {};
     outline.raycast = () => {};
 
     const label = makeTextSprite(g.label || 'As built, indicative');
-    label.position.set(g.funnel ? g.funnel.at : 0, Math.max(funnelTop, roof) + 1.4, 0);
+    label.position.fromArray(warp([g.funnel ? g.funnel.at : 0, Math.max(funnelTop, roof) + 1.4, 0]));
     label.scale.multiplyScalar(1.0);
 
     const ship = new THREE.Group();
