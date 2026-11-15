@@ -13,11 +13,12 @@
     {
         "imports": {
             "three": "https://cdn.jsdelivr.net/npm/three@0.179.1/+esm",
-            "belowjs": "https://cdn.jsdelivr.net/npm/belowjs@1.8.0/dist/belowjs.js"
+            "belowjs": "/assets/belowjs-dev/belowjs.js?v=8349153"
         }
     }
     </script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/belowjs@1.8.0/dist/belowjs.css">
+    <!-- Test site: BelowJS built from abeachsomewhere123/belowjs 8349153 (seabed passthrough). Live uses belowjs@1.8.0 from the CDN. -->
+    <link rel="stylesheet" href="/assets/belowjs-dev/belowjs.css?v=8349153">
     <link rel="stylesheet" href="/assets/viewer.css">
 
     <style>
@@ -149,7 +150,10 @@
                 enableScreenshot: true,
                 autoLoadFirst: false,
                 viewerConfig: {
-                    scene: { background: '#001122' }
+                    scene: { background: '#001122' },
+                    // On passthrough headsets, standing on the sand in VR shows
+                    // the room with the wreck around you at full scale.
+                    vr: { passthroughOnSeabed: true }
                 }
             });
 

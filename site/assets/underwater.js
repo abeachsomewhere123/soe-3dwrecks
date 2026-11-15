@@ -67,15 +67,20 @@ export function addUnderwater(viewer) {
     const cameraPosition = new THREE.Vector3();
 
     below.on('before-render', (deltaTime) => {
-        if (renderer.xr.isPresenting && isARSession(renderer)) {
+        // VR with seabed passthrough runs as an AR session but is VR until
+        // you stand on the sand; BelowJS fades the water and fog out there.
+        const passthroughVR = below.isVRPassthroughSession?.() === true;
+        if (renderer.xr.isPresenting && isARSession(renderer) && !passthroughVR) {
             // AR shows the real room. Leave the scene alone.
             seabed.visible = snow.visible = false;
             return;
         }
+        // Standing on the sand: the real floor takes over past the scan.
+        const inRoom = passthroughVR && below.isVRPassthrough?.() === true;
 
         const diving = viewer.diveSystem?.isDiveMode?.() === true;
-        seabed.visible = modelLoaded;
-        snow.visible = modelLoaded && !diving && renderer.xr.isPresenting;
+        seabed.visible = modelLoaded && !inRoom;
+        snow.visible = modelLoaded && !diving && !inRoom && renderer.xr.isPresenting;
         vignette.classList.toggle('is-diving', diving);
 
         if (diving) {
