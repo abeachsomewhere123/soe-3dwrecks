@@ -464,141 +464,264 @@ function setMarkerProgress(sprite, progress) {
 
 // ── Ghost hull ───────────────────────────────────────────────────────────
 //
-// Built in the ship's own frame (x forward from the stern, y up from the
-// keel, z to starboard) from the registered beam and depth, then placed with
-// the keel, forward, up and starboard directions measured from the scan.
+// Built in the ship's own frame (x forward, y up from the keel, z to
+// starboard, metres; x matches distance along the scanned wreck), then placed
+// with the keel point and the forward, up and starboard directions measured
+// from the scan, so it takes the wreck's list. The hull is sized from the
+// registered dimensions. The deckhouse, wheelhouse, funnel, masts and towing
+// gear follow the layout steam tugs of the period share; their sizes and
+// positions are set in the data file and are indicative.
 
 function makeGhost(g) {
     const group = new THREE.Group();
     group.name = 'ghost-as-built';
+    const h = g.hull || {};
     const L = g.bow - g.stern;
     const halfBeam = g.beam / 2;
+    const deckSide = h.deckAtSide ?? g.depth;
+    const bulwark = h.bulwark ?? 0.85;
+    const sheerBow = h.sheerBow ?? 1.2;
+    const sheerStern = h.sheerStern ?? 0.4;
+    const counter = h.counter ?? 2.5;          // round stern overhang aft of the sternpost
+    const sternpost = g.stern + counter;
+    const midship = g.stern + 0.45 * L;
 
-    // Plan: round stern, parallel middle body, fine bow.
-    const breadth = (t) => {
-        let f;
-        if (t < 0.15) f = Math.sqrt(Math.max(0, 1 - ((0.15 - t) / 0.15) ** 2));
-        else if (t < 0.55) f = 1;
-        else f = 1 - ((t - 0.55) / 0.45) ** 1.8;
-        return halfBeam * Math.max(f, 0.02);
+    // Plan: a round stern (half circle about the half beam), parallel body,
+    // and a fine bow.
+    const bowStart = g.bow - 0.42 * L;
+    const breadth = (x) => {
+        let f = 1;
+        if (x < g.stern + halfBeam) f = Math.sqrt(Math.max(0, 1 - ((g.stern + halfBeam - x) / halfBeam) ** 2));
+        else if (x > bowStart) f = 1 - ((x - bowStart) / (g.bow - bowStart)) ** 1.8;
+        return halfBeam * Math.max(f, 0.015);
     };
-    // Profile: counter stern rises aft, forefoot rises at the stem, sheer
-    // rises towards both ends.
-    const bottom = (t) => (t < 0.08 ? 2.2 * ((0.08 - t) / 0.08) ** 1.5 : 0) + (t > 0.92 ? 1.4 * ((t - 0.92) / 0.08) ** 2 : 0);
-    const deck = (t) => g.depth + (t > 0.45 ? 0.9 * ((t - 0.45) / 0.55) ** 2 : 0.35 * ((0.45 - t) / 0.45) ** 2);
+    // Deck at side with sheer rising to both ends, more at the bow.
+    const deck = (x) => deckSide + (x > midship
+        ? sheerBow * ((x - midship) / (g.bow - midship)) ** 2
+        : sheerStern * ((midship - x) / (midship - g.stern)) ** 2);
+    // Underside: the counter sweeps up aft of the sternpost and the forefoot
+    // rounds up into a near plumb stem.
+    const forefoot = 3.5;
+    const bottom = (x) => {
+        if (x < sternpost) return (deck(x) - 1.3) * (1 - Math.sqrt(Math.max(0, 1 - ((sternpost - x) / counter) ** 2)));
+        if (x > g.bow - forefoot) return deck(x) * (1 - Math.sqrt(Math.max(0, 1 - ((x - (g.bow - forefoot)) / forefoot) ** 2)));
+        return 0;
+    };
     // Section: rounded bilge low down, wall sided above.
-    const section = (eta) => (eta < 0.45 ? Math.pow(1 - Math.pow(1 - eta / 0.45, 2.2), 1 / 2.2) : 1);
+    const section = (eta) => (eta < 0.42 ? Math.pow(1 - Math.pow(1 - eta / 0.42, 2.2), 1 / 2.2) : 1);
 
-    const STATIONS = 64;
-    const ROWS = 18; // keel to deck on each side
-    const hullPoint = (t, side, eta) => {
-        const yb = bottom(t);
-        const y = yb + (deck(t) - yb) * eta;
-        return [g.stern + t * L, y, side * breadth(t) * section(eta)];
+    const STATIONS = 80;
+    const ROWS = 16;
+    const xAt = (i) => g.stern + (i / STATIONS) * L;
+    const hullPoint = (x, side, eta) => {
+        const yb = bottom(x);
+        return [x, yb + (deck(x) - yb) * eta, side * breadth(x) * section(eta)];
     };
 
     const positions = [];
     const index = [];
-    const cols = ROWS * 2 + 1; // port deck edge, round the keel, starboard deck edge
-    for (let i = 0; i <= STATIONS; i++) {
-        const t = i / STATIONS;
-        for (let j = 0; j < cols; j++) {
-            const side = j < ROWS ? -1 : 1;
-            const eta = j < ROWS ? 1 - j / ROWS : (j - ROWS) / ROWS;
-            positions.push(...hullPoint(t, side, eta));
+    const grid = (rows, point) => {
+        const start = positions.length / 3;
+        for (let i = 0; i <= STATIONS; i++) for (let j = 0; j < rows; j++) positions.push(...point(xAt(i), j));
+        for (let i = 0; i < STATIONS; i++) {
+            for (let j = 0; j < rows - 1; j++) {
+                const p = start + i * rows + j;
+                index.push(p, p + rows, p + 1, p + 1, p + rows, p + rows + 1);
+            }
         }
-    }
-    for (let i = 0; i < STATIONS; i++) {
-        for (let j = 0; j < cols - 1; j++) {
-            const p = i * cols + j;
-            index.push(p, p + cols, p + 1, p + 1, p + cols, p + cols + 1);
-        }
-    }
+    };
+    // Shell: port deck edge, round the keel, starboard deck edge.
+    const cols = ROWS * 2 + 1;
+    grid(cols, (x, j) => {
+        const side = j < ROWS ? -1 : 1;
+        return hullPoint(x, side, j < ROWS ? 1 - j / ROWS : (j - ROWS) / ROWS);
+    });
+    // Bulwarks, each side.
+    for (const side of [-1, 1]) grid(2, (x, j) => [x, deck(x) + j * bulwark, side * breadth(x)]);
     // Deck.
-    const deckStart = positions.length / 3;
-    for (let i = 0; i <= STATIONS; i++) {
-        const t = i / STATIONS;
-        const y = deck(t);
-        positions.push(g.stern + t * L, y, -breadth(t), g.stern + t * L, y, breadth(t));
-    }
-    for (let i = 0; i < STATIONS; i++) {
-        const p = deckStart + i * 2;
-        index.push(p, p + 2, p + 1, p + 1, p + 2, p + 3);
-    }
-    const hull = new THREE.BufferGeometry();
-    hull.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    hull.setIndex(index);
-    hull.computeVertexNormals();
+    grid(2, (x, j) => [x, deck(x), (j ? 1 : -1) * breadth(x)]);
+
+    const shell = new THREE.BufferGeometry();
+    shell.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    shell.setIndex(index);
+    shell.computeVertexNormals();
 
     const surfaceMaterial = makeGhostMaterial();
-    const surface = new THREE.Mesh(hull, surfaceMaterial);
-    surface.raycast = () => {};
+    const meshes = [new THREE.Mesh(shell, surfaceMaterial)];
 
-    // Blueprint lines: sections every 2 m, the deck edge and the keel.
+    // Blueprint lines.
     const lines = [];
-    const addPolyline = (pts) => { for (let k = 0; k < pts.length - 1; k++) lines.push(...pts[k], ...pts[k + 1]); };
+    const polyline = (pts, closed = false) => {
+        for (let k = 0; k < pts.length - 1; k++) lines.push(...pts[k], ...pts[k + 1]);
+        if (closed) lines.push(...pts[pts.length - 1], ...pts[0]);
+    };
+    const along = (fn) => { const pts = []; for (let i = 0; i <= STATIONS; i++) pts.push(fn(xAt(i))); return pts; };
     for (let x = Math.ceil(g.stern / 2) * 2; x <= g.bow; x += 2) {
-        const t = (x - g.stern) / L;
         const pts = [];
         for (let j = 0; j < cols; j++) {
             const side = j < ROWS ? -1 : 1;
-            const eta = j < ROWS ? 1 - j / ROWS : (j - ROWS) / ROWS;
-            pts.push(hullPoint(t, side, eta));
+            pts.push(hullPoint(x, side, j < ROWS ? 1 - j / ROWS : (j - ROWS) / ROWS));
         }
-        addPolyline(pts);
+        polyline(pts);
     }
     for (const side of [-1, 1]) {
-        const pts = [];
-        for (let i = 0; i <= STATIONS; i++) pts.push(hullPoint(i / STATIONS, side, 1));
-        addPolyline(pts);
+        polyline(along((x) => [x, deck(x), side * breadth(x)]));                      // deck edge and rubbing strake
+        polyline(along((x) => [x, deck(x) + bulwark, side * breadth(x)]));            // rail
     }
-    {
+    polyline(along((x) => [x, bottom(x), 0]));                                          // keel, stem and counter
+
+    // Fittings: boxes and cylinders share the ghost surface; their edges
+    // are drawn as lines.
+    const add = (geo, edges = true) => {
+        geo.computeVertexNormals();
+        meshes.push(new THREE.Mesh(geo, surfaceMaterial));
+        if (edges) {
+            const e = new THREE.EdgesGeometry(geo, 25).attributes.position.array;
+            for (let k = 0; k < e.length; k++) lines.push(e[k]);
+        }
+    };
+    const box = (x0, x1, y0, height, width) => {
+        const geo = new THREE.BoxGeometry(x1 - x0, height, width);
+        geo.translate((x0 + x1) / 2, y0 + height / 2, 0);
+        add(geo);
+    };
+    const ring = (x, y, z, r, axis = 'y', n = 24) => {
         const pts = [];
-        for (let i = 0; i <= STATIONS; i++) pts.push(hullPoint(i / STATIONS, 1, 0));
-        addPolyline(pts);
+        for (let k = 0; k < n; k++) {
+            const a = (k / n) * Math.PI * 2;
+            pts.push(axis === 'y' ? [x + r * Math.cos(a), y, z + r * Math.sin(a)]
+                : axis === 'z' ? [x + r * Math.cos(a), y + r * Math.sin(a), z]
+                : [x, y + r * Math.cos(a), z + r * Math.sin(a)]);
+        }
+        polyline(pts, true);
+    };
+
+    // Engine and boiler casing, with the wheelhouse on its forward end.
+    let casingTop = deckSide;
+    if (g.casing) {
+        const c = g.casing;
+        const base = deck((c.from + c.to) / 2);
+        box(c.from, c.to, base, c.height, c.width);
+        casingTop = base + c.height;
+        // Portholes along both sides.
+        for (let x = c.from + 1.2; x < c.to - 0.6; x += c.portholeSpacing ?? 1.8) {
+            for (const side of [-1, 1]) ring(x, base + c.height * 0.6, side * c.width / 2, 0.2, 'z', 12);
+        }
+        // Engine room skylight.
+        if (c.skylight) box(c.skylight.from, c.skylight.to, casingTop, 0.6, c.skylight.width ?? 1.8);
+        // Ship's boat on the after end of the casing, keel up the centreline.
+        if (c.boat) {
+            const b = c.boat;
+            const geo = new THREE.SphereGeometry(1, 24, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+            geo.scale(b.length / 2, 0.75, (b.beam ?? 1.6) / 2);
+            geo.translate(b.at, casingTop + 1.0, 0);
+            add(geo, false);
+            ring(b.at, casingTop + 1.0, 0, 1, 'y', 32);
+            const gunwale = lines.length - 32 * 6;
+            for (let k = gunwale; k < lines.length; k += 3) {
+                lines[k] = b.at + (lines[k] - b.at) * b.length / 2;
+                lines[k + 2] = lines[k + 2] * (b.beam ?? 1.6) / 2;
+            }
+        }
     }
+    let roof = casingTop;
+    if (g.wheelhouse) {
+        const w = g.wheelhouse;
+        box(w.from, w.to, casingTop, w.height, w.width);
+        roof = casingTop + w.height;
+        // Window band and flying bridge rail.
+        const y0 = casingTop + w.height * 0.5, y1 = casingTop + w.height * 0.85, hw = w.width / 2;
+        for (const y of [y0, y1]) polyline([[w.from, y, -hw], [w.to, y, -hw], [w.to, y, hw], [w.from, y, hw]]);
+        for (let z = -hw + 0.55; z < hw - 0.2; z += 0.55) polyline([[w.to, y0, z], [w.to, y1, z]]);
+        const r = roof + 0.95;
+        polyline([[w.from, r, -hw], [w.to, r, -hw], [w.to, r, hw], [w.from, r, hw]], true);
+        for (const [x, z] of [[w.from, -hw], [w.to, -hw], [w.to, hw], [w.from, hw]]) polyline([[x, roof, z], [x, r, z]]);
+    }
+
+    // Funnel over the boiler, raked aft, with a band near the top.
+    let funnelTop = roof;
+    if (g.funnel) {
+        const f = g.funnel;
+        const rake = THREE.MathUtils.degToRad(f.rake ?? 6);
+        const base = casingTop - 0.2;
+        const length = deckSide + f.height - base;
+        const geo = new THREE.CylinderGeometry(f.radius, f.radius, length, 28, 1, true);
+        geo.translate(0, length / 2, 0);
+        geo.rotateZ(rake);
+        geo.translate(f.at, base, 0);
+        add(geo, false);
+        const top = (t) => [f.at - Math.sin(rake) * length * t, base + Math.cos(rake) * length * t];
+        for (const t of [0.04, 0.82, 0.9, 1]) { const [x, y] = top(t); ring(x, y, 0, f.radius); }
+        funnelTop = top(1)[1];
+        // Cowl ventilators either side, as on most steam tugs.
+        for (const side of [-1, 1]) {
+            const vx = f.at + (f.radius + 0.7), vz = side * (f.radius + 0.35);
+            const pipe = new THREE.CylinderGeometry(0.2, 0.2, 2.0, 12, 1, true);
+            pipe.translate(vx, casingTop + 1.0, vz);
+            add(pipe, false);
+            const cowl = new THREE.CylinderGeometry(0.42, 0.24, 0.6, 14, 1, true);
+            cowl.rotateZ(Math.PI / 2);
+            cowl.translate(vx + 0.2, casingTop + 2.15, vz);
+            add(cowl, false);
+            ring(vx + 0.5, casingTop + 2.15, vz, 0.42, 'x');
+        }
+    }
+
+    // Masts with stays. Schooner rig: a foremast and a mainmast.
+    const masts = g.masts || [];
+    masts.forEach((m, k) => {
+        const base = deck(m.at);
+        const geo = new THREE.CylinderGeometry(0.09, 0.16, m.height, 10, 1, true);
+        geo.translate(m.at, base + m.height / 2, 0);
+        add(geo, false);
+        const head = [m.at, base + m.height, 0];
+        polyline([head, [m.at, base, 0]]);
+        polyline([[m.at, base + m.height * 0.72, -1.0], [m.at, base + m.height * 0.72, 1.0]]);   // crosstrees
+        for (const side of [-1, 1]) polyline([head, [m.at - 1.2, deck(m.at - 1.2) + bulwark, side * breadth(m.at - 1.2)]]);
+        if (k === 0) polyline([head, [g.bow, deck(g.bow) + bulwark, 0]]);                  // forestay to the stem head
+        if (k === masts.length - 1 && masts.length > 1) polyline([head, [masts[0].at, deck(masts[0].at) + masts[0].height * 0.85, 0]]);
+    });
+
+    // Towing arches over the after deck, and towing bitts.
+    for (const x of g.towingArches || []) {
+        const hw = breadth(x) - 0.15, top = deck(x) + bulwark + 0.9;
+        const pts = [];
+        for (let k = 0; k <= 16; k++) {
+            const a = Math.PI * (k / 16);
+            pts.push(new THREE.Vector3(x, deck(x) + bulwark + (top - deck(x) - bulwark) * Math.sin(a), -hw * Math.cos(a)));
+        }
+        add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.06, 6, false), false);
+        polyline(pts.map((v) => v.toArray()));
+    }
+    for (const b of g.bitts || []) {
+        for (const side of [-1, 1]) {
+            const geo = new THREE.CylinderGeometry(0.17, 0.17, 0.9, 12);
+            geo.translate(b, deck(b) + 0.45, side * 0.45);
+            add(geo);
+        }
+    }
+
+    // Rudder abaft the sternpost and the propeller disc ahead of it.
+    if (h.rudder !== false) {
+        const geo = new THREE.BoxGeometry(1.1, 2.6, 0.14);
+        geo.translate(sternpost - 0.55, 1.45, 0);
+        add(geo);
+        ring(sternpost + 0.6, 1.5, 0, 1.15, 'x');
+    }
+
     const lineGeometry = new THREE.BufferGeometry();
     lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(lines, 3));
     const lineMaterial = new THREE.LineBasicMaterial({ color: GHOST_COLOUR, transparent: true, depthWrite: false, fog: false });
     const outline = new THREE.LineSegments(lineGeometry, lineMaterial);
+    for (const m of meshes) m.raycast = () => {};
     outline.raycast = () => {};
 
-    // Indicative fittings.
-    const fittings = [];
-    const deckAt = (x) => deck((x - g.stern) / L);
-    if (g.funnel) {
-        const f = g.funnel;
-        const geo = new THREE.CylinderGeometry(f.radius, f.radius, f.height, 24, 1, true);
-        geo.translate(0, f.height / 2, 0);
-        geo.rotateZ(THREE.MathUtils.degToRad(8)); // raked aft
-        geo.translate(f.at, deckAt(f.at) - 0.3, 0);
-        fittings.push(geo);
-    }
-    if (g.wheelhouse) {
-        const w = g.wheelhouse;
-        const geo = new THREE.BoxGeometry(w.to - w.from, w.height, w.width);
-        geo.translate((w.from + w.to) / 2, deckAt((w.from + w.to) / 2) + w.height / 2, 0);
-        fittings.push(geo);
-    }
-    for (const m of g.masts || []) {
-        const geo = new THREE.CylinderGeometry(0.08, 0.14, m.height, 8, 1, true);
-        geo.translate(m.at, deckAt(m.at) + m.height / 2, 0);
-        fittings.push(geo);
-    }
-    const fittingMeshes = fittings.map((geo) => {
-        geo.computeVertexNormals();
-        const mesh = new THREE.Mesh(geo, surfaceMaterial);
-        mesh.raycast = () => {};
-        return mesh;
-    });
-
     const label = makeTextSprite(g.label || 'As built, indicative');
-    const labelX = g.funnel ? g.funnel.at : 0;
-    label.position.set(labelX, deckAt(labelX) + (g.funnel ? g.funnel.height + 1.2 : 3), 0);
-    label.scale.multiplyScalar(0.7);
+    label.position.set(g.funnel ? g.funnel.at : 0, Math.max(funnelTop, roof) + 1.4, 0);
+    label.scale.multiplyScalar(1.0);
 
     const ship = new THREE.Group();
-    ship.add(surface, outline, label, ...fittingMeshes);
+    ship.add(...meshes, outline, label);
 
     // Ship frame to model coordinates.
     const forward = new THREE.Vector3().fromArray(g.forward).normalize();
