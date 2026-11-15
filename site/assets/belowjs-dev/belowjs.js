@@ -11167,7 +11167,7 @@ class bh {
     const t = this.camera?.far || this.options.backdropRadius * 2;
     this.backdrop.scale.setScalar(Math.min(t * 0.9, this.options.backdropRadius * 4) / this.options.backdropRadius);
     const s = this.backdrop.material, i = this.scene.background;
-    i?.isTexture ? s.map !== i && (s.map = i, s.color.set(16777215), s.needsUpdate = !0) : (s.map && (s.map = null, s.needsUpdate = !0), i?.isColor ? s.color.copy(i) : this.scene.fog?.color && s.color.copy(this.scene.fog.color)), s.opacity = 1 - this.blend, this.backdrop.visible = this.blend < 1;
+    i?.isTexture ? s.map !== i && (s.map = i, s.color.set(16777215), s.needsUpdate = !0) : (s.map && (s.map = null, s.needsUpdate = !0), i?.isColor ? s.color.copy(i) : this.scene.fog?.color && s.color.copy(this.scene.fog.color)), s.opacity = 1 - this.blend, this.backdrop.visible = this.blend < 1, this._savedBackground = i, this.scene.background = null;
     const r = this.scene.fog;
     if (this._savedFog = null, r && this.blend > 0) {
       const n = 1 - this.blend;
@@ -11181,6 +11181,7 @@ class bh {
     }
   }
   afterRender() {
+    this._savedBackground !== void 0 && (this.scene.background === null && (this.scene.background = this._savedBackground), this._savedBackground = void 0);
     const e = this._savedFog;
     e && (e.density !== void 0 && (e.fog.density = e.density), e.near !== void 0 && (e.fog.near = e.near, e.fog.far = e.far), this._savedFog = null);
   }
