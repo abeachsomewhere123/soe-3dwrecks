@@ -92,7 +92,7 @@ export function addWreckExtras(viewer, options = {}) {
         let data = cache.get(key);
         if (data === undefined) {
             try {
-                const res = await fetch(DATA_URL(key));
+                const res = await fetch(DATA_URL(key), { cache: 'no-cache' });   // revalidate: the site caches assets for hours
                 data = res.ok ? await res.json() : null;
             } catch {
                 data = null;

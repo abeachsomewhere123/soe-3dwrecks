@@ -23,6 +23,10 @@ On `dev`, `/view/` uses a BelowJS build of the `claude/upbeat-volta-1lk76n` bran
 
 Before merging `dev` into `main`, ideally publish a BelowJS release with this feature and host that in `site/vendor/belowjs/<version>/` in place of the branch build (see `site/vendor/README.md`).
 
+## Caching of site scripts
+
+Cloudflare tells browsers to keep files under `/assets/` for 4 hours. Pages load `wreck-extras.js` (and `wreck-extras.css`) with `?v=` and the first 8 characters of the file's SHA-256, so a changed file is fetched at once. After editing either file, update the `?v=` in `then-now/`, `view/` and `ar/`: `sha256sum site/assets/wreck-extras.js | cut -c1-8`. The wreck data files (`assets/wrecks/*.json`) are fetched with `cache: 'no-cache'`, so they always revalidate.
+
 ## Then and now page (test site)
 
 `/then-now/?model=euro` is a cut-down, browser-only page: the wreck fills the screen with a slider down it, the reconstruction to the left and the scan to the right, rendered from one camera so the halves line up. Drag the handle (or use the arrow keys on it) to compare; drag anywhere else to spin the wreck, which turns slowly on its own until touched. It only offers wrecks with a reconstruction in `site/assets/wrecks/`, and uses `addWreckExtras(viewer, { ui: false, dimWreck: false, inside: false })`. The scanned sand shows on both sides.
