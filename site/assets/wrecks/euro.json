@@ -1,0 +1,226 @@
+{
+  "name": "Euro",
+  "seabedDepth": 45,
+  "seabedDepthNote": "45 m from the SOE dive calendar. Some dive reports give about 50 m.",
+  "built": "Built 1897 by Gourlay Bros, Dundee",
+  "pois": [],
+  "ghost": {
+    "label": "Reconstruction, indicative",
+    "note": "Hull sized from the registered dimensions (130 x 22.5 x 12.2 ft) and fitted to the scan: she lies about 36 degrees to port, easing to about 30 degrees at the bow. Deck layout, funnel, masts, boat and towing gear follow a State Library of Western Australia photograph of the Euro (date not recorded here), measured from the photo; detail the photo doesn't show follows tugs of the period. Colours can't be read from a black and white photo: the funnel's dull red with a black top fits its grey tone but is a guess.",
+    "listToPort": 36.0,
+    "keel": [
+      -127.2396,
+      22.841,
+      173.4955
+    ],
+    "forward": [
+      -0.9861,
+      0.1139,
+      0.1206
+    ],
+    "up": [
+      0.1658,
+      0.6984,
+      0.6962
+    ],
+    "starboard": [
+      -0.0049,
+      0.7066,
+      -0.7076
+    ],
+    "stern": -17.58,
+    "bow": 23.65,
+    "beam": 6.86,
+    "depth": 3.72,
+    "hull": {
+      "deckAtSide": 3.8,
+      "bulwark": 0.85,
+      "sheerBow": 1.6,
+      "sheerStern": 0.4,
+      "counter": 2.6,
+      "bowLength": 0.32,
+      "bowFullness": 1.8
+    },
+    "casing": {
+      "from": -0.9,
+      "to": 15.7,
+      "width": 4.2,
+      "height": 2.1,
+      "portholeSpacing": 0,
+      "boat": {
+        "at": 1.75,
+        "length": 4.5,
+        "beam": 1.5,
+        "z": 0.95,
+        "davits": true
+      },
+      "openings": [
+        {
+          "at": 1.5,
+          "type": "window"
+        },
+        {
+          "at": 6.85,
+          "type": "window"
+        },
+        {
+          "at": 11.6,
+          "type": "door"
+        }
+      ],
+      "skylight": {
+        "from": 7.3,
+        "to": 8.8,
+        "width": 1.6
+      }
+    },
+    "wheelhouse": {
+      "from": 9.5,
+      "to": 12.4,
+      "width": 3.2,
+      "height": 2.0
+    },
+    "funnel": {
+      "at": 5.3,
+      "radius": 0.95,
+      "height": 11.0,
+      "rake": 3,
+      "guys": [
+        -1.7,
+        1.7
+      ],
+      "guyBand": 0.78,
+      "whistleAt": 0.84
+    },
+    "masts": [
+      {
+        "at": 12.9,
+        "height": 15.5,
+        "rake": 5,
+        "rigging": {
+          "hounds": 0.68,
+          "shrouds": [
+            0.9,
+            1.5,
+            2.1
+          ],
+          "ratlines": true,
+          "backstays": [
+            5.0
+          ],
+          "forestays": [
+            "stem",
+            "hounds"
+          ],
+          "light": 0.55
+        }
+      },
+      {
+        "at": -0.4,
+        "height": 15.5,
+        "rake": 5,
+        "rigging": {
+          "hounds": 0.7,
+          "shrouds": [
+            1.0,
+            1.7
+          ]
+        }
+      }
+    ],
+    "towingArches": [
+      -9.3,
+      -3.7
+    ],
+    "bitts": [
+      19.6
+    ],
+    "twist": {
+      "at": [
+        -17.58,
+        6.0,
+        23.65
+      ],
+      "roll": [
+        0,
+        0,
+        -6.3
+      ],
+      "up": [
+        0,
+        0,
+        0.383
+      ],
+      "starboard": [
+        0,
+        0,
+        -0.612
+      ]
+    },
+    "afterCasing": {
+      "from": -13.4,
+      "to": -7.5,
+      "width": 3.0,
+      "height": 1.0,
+      "skylight": {
+        "from": -12.6,
+        "to": -8.4,
+        "width": 1.6
+      }
+    },
+    "towingHook": {
+      "at": -0.95,
+      "height": 1.45
+    },
+    "towingArchHeight": 1.75,
+    "quarterBitts": [
+      -15.9
+    ],
+    "steering": {
+      "quadrant": true,
+      "radius": 1.0
+    },
+    "sliderLabel": "Reconstruction (indicative)",
+    "photoSource": "State Library of Western Australia, photograph of the steam tug Euro",
+    "colours": {
+      "deckhouse": "#4a4339",
+      "funnel": "#8a4232",
+      "funnelTop": 0.22,
+      "masts": "#a8946f"
+    },
+    "vents": [
+      {
+        "at": 1.6,
+        "z": -0.95,
+        "height": 1.8
+      },
+      {
+        "at": 3.3,
+        "z": -0.95,
+        "height": 1.6
+      }
+    ],
+    "lifebuoys": [
+      {
+        "at": 9.1,
+        "on": "casing"
+      },
+      {
+        "at": -11.1,
+        "on": "afterCasing"
+      }
+    ],
+    "fenders": {
+      "bow": true,
+      "hanging": [
+        16.6,
+        18.4
+      ]
+    },
+    "rigging": {
+      "triatic": true,
+      "mainToFunnel": 0.45
+    },
+    "sidelights": true
+  }
+}
