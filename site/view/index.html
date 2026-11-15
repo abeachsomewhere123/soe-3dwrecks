@@ -12,13 +12,13 @@
     <script type="importmap">
     {
         "imports": {
-            "three": "https://cdn.jsdelivr.net/npm/three@0.179.1/+esm",
-            "belowjs": "/assets/belowjs-dev/belowjs.js?v=5bf0695"
+            "three": "/vendor/three/0.179.1/three.module.js",
+            "belowjs": "/vendor/belowjs/1.8.0-dev.5bf0695/belowjs.js"
         }
     }
     </script>
-    <!-- Test site: BelowJS built from abeachsomewhere123/belowjs 5bf0695 (seabed passthrough). Live uses belowjs@1.8.0 from the CDN. -->
-    <link rel="stylesheet" href="/assets/belowjs-dev/belowjs.css?v=5bf0695">
+    <!-- Test site: three.js and BelowJS are served from /vendor/ (BelowJS built from abeachsomewhere123/belowjs 5bf0695, with seabed passthrough). Live still uses the CDN. -->
+    <link rel="stylesheet" href="/vendor/belowjs/1.8.0-dev.5bf0695/belowjs.css">
     <link rel="stylesheet" href="/assets/viewer.css">
     <link rel="stylesheet" href="/assets/wreck-extras.css">
 
@@ -157,6 +157,8 @@
             addVrStarts(models);
 
             const viewer = new ModelViewer(document.getElementById('viewer'), {
+                // Draco and KTX2 decoders and VR controller models: self-hosted (see /vendor/README.md).
+                assetBasePath: '/vendor/below-assets/',
                 enableVR: true,
                 showInfo: true,
                 models: models,

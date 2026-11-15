@@ -19,9 +19,13 @@
 
 ## Seabed passthrough (test site only)
 
-On `dev`, `/view/` loads BelowJS from `site/assets/belowjs-dev/`, a build of the `claude/upbeat-volta-1lk76n` branch of abeachsomewhere123/belowjs, with `vr: { passthroughOnSeabed: true }`. On a passthrough headset (Quest 3), coming down onto the sand in VR fades the water out so the room shows, with the wreck around you at full scale; rising off the sand brings the water back. `underwater.js` hides the extended seabed and marine snow while you stand on the sand. `main` still uses `belowjs@1.8.0` from the CDN.
+On `dev`, `/view/` uses a BelowJS build of the `claude/upbeat-volta-1lk76n` branch of abeachsomewhere123/belowjs (served from `site/vendor/belowjs/`), with `vr: { passthroughOnSeabed: true }`. On a passthrough headset (Quest 3), coming down onto the sand in VR fades the water out so the room shows, with the wreck around you at full scale; rising off the sand brings the water back. `underwater.js` hides the extended seabed and marine snow while you stand on the sand. `main` still uses `belowjs@1.8.0` and three.js from the jsDelivr CDN.
 
-Before merging `dev` into `main`, either publish a BelowJS release with this feature and switch `/view/` to it, or leave `site/assets/belowjs-dev/` and the `/view/` import map out of the merge.
+Before merging `dev` into `main`, ideally publish a BelowJS release with this feature and host that in `site/vendor/belowjs/<version>/` in place of the branch build (see `site/vendor/README.md`).
+
+## Self-hosted libraries (test site)
+
+On `dev` nothing loads from a CDN: three.js, BelowJS, the KTX2 transcoder and Draco decoder, the Quest controller models and the animate tool's MP4 writer are all served from `site/vendor/`, with versioned folders cached for a year. Every page passes `assetBasePath: '/vendor/below-assets/'` to BelowJS. `site/vendor/README.md` lists versions, sources and licences, and how to update them.
 
 ## Wreck extras (test site only)
 
