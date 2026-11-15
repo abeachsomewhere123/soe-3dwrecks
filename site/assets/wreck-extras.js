@@ -132,7 +132,7 @@ export function addWreckExtras(viewer) {
         root.name = 'wreck-extras';
         model.add(root);
 
-        const ghost = data.ghost ? makeGhost(data.ghost) : null;
+        const ghost = data.ghost ? makeGhost(data.ghost, renderer) : null;
         if (ghost) root.add(ghost.group);
 
         // Markers are in the model's coordinates, or (ship) in the
@@ -591,7 +591,7 @@ function setMarkerProgress(sprite, progress) {
 // gear follow the layout steam tugs of the period share; their sizes and
 // positions are set in the data file and are indicative.
 
-function makeGhost(g) {
+function makeGhost(g, renderer) {
     const group = new THREE.Group();
     group.name = 'ghost-as-built';
     const h = g.hull || {};
@@ -696,6 +696,8 @@ function makeGhost(g) {
     // with the ship.
     const mats = shipMaterials(h.waterline ?? 2.9);
     const meshes = [];
+    const fadeHooks = [];   // extra things to fade with the reconstruction (the lamp's light)
+    const shipGroup = new THREE.Group();
     const addMesh = (geo, material, uv = 'box') => {
         if (uv === 'box') boxUV(geo);
         warp(geo.attributes.position.array);
@@ -829,6 +831,9 @@ function makeGhost(g) {
         const H = w.height;
         roof = floor + H;
         const sill = floor + 1.05, head = floor + 1.78;
+        // Panelled joinery for the walls, lined up with this floor, and a
+        // reflection map of the lit wheelhouse for the brass, glass and varnish.
+        Object.assign(mats, wheelhouseMaterials(renderer, mats, floor));
         // A wall pierced by a row of windows. Runs along x (sides) or z (front).
         const windowWall = (fixed, from, to, panes, isFront) => {
             const len = to - from, mull = 0.09, pane = (len - mull * (panes + 1)) / panes;
@@ -836,7 +841,7 @@ function makeGhost(g) {
                 const geo = isFront
                     ? new THREE.BoxGeometry(t, y1 - y0, a1 - a0).translate(fixed, (y0 + y1) / 2, (a0 + a1) / 2)
                     : new THREE.BoxGeometry(a1 - a0, y1 - y0, t).translate((a0 + a1) / 2, (y0 + y1) / 2, fixed);
-                addMesh(geo, mats.timber);
+                addMesh(geo, mats.panelling);
             };
             piece(from, to, floor, sill);
             piece(from, to, head, roof);
@@ -855,21 +860,30 @@ function makeGhost(g) {
         for (const side of [-1, 1]) windowWall(side * (hw - t / 2), w.from, w.to, Math.max(2, Math.round((w.to - w.from) / 0.8)), false);
         // After wall with a doorway; the door stands open.
         const door = 0.38, doorTop = floor + 1.95, ax = w.from + t / 2;
-        addMesh(new THREE.BoxGeometry(t, H, hw - door).translate(ax, floor + H / 2, -(hw + door) / 2), mats.timber);
-        addMesh(new THREE.BoxGeometry(t, H, hw - door).translate(ax, floor + H / 2, (hw + door) / 2), mats.timber);
-        addMesh(new THREE.BoxGeometry(t, roof - doorTop, door * 2).translate(ax, (doorTop + roof) / 2, 0), mats.timber);
+        addMesh(new THREE.BoxGeometry(t, H, hw - door).translate(ax, floor + H / 2, -(hw + door) / 2), mats.panelling);
+        addMesh(new THREE.BoxGeometry(t, H, hw - door).translate(ax, floor + H / 2, (hw + door) / 2), mats.panelling);
+        addMesh(new THREE.BoxGeometry(t, roof - doorTop, door * 2).translate(ax, (doorTop + roof) / 2, 0), mats.panelling);
+        // Door knob.
+        addMesh(new THREE.SphereGeometry(0.03, 14, 10).translate(w.from - 0.03 - Math.sin(1.4) * (door * 2 - 0.12), floor + 1.0, door - Math.cos(1.4) * (door * 2 - 0.12) + 0.03), mats.brass);
+        // Window sills inside, and deckhead beams.
+        addMesh(new THREE.BoxGeometry(0.16, 0.035, w.width - 2 * t).translate(w.to - t - 0.08, sill + 0.0175, 0), mats.darkTimber);
+        for (const side of [-1, 1]) addMesh(new THREE.BoxGeometry(w.to - w.from - 2 * t, 0.035, 0.16).translate((w.from + w.to) / 2, sill + 0.0175, side * (hw - t - 0.08)), mats.darkTimber);
+        for (let k = 1; k <= 3; k++) {
+            const bx = w.from + (k / 4) * (w.to - w.from);
+            addMesh(new THREE.BoxGeometry(0.09, 0.11, w.width - 2 * t).translate(bx, roof - 0.055, 0), mats.deckhead);
+        }
         // Hinged on the starboard side of the doorway, swung open aft.
         addMesh(new THREE.BoxGeometry(0.04, 1.93, door * 2 - 0.04).translate(0, 0, -(door - 0.02))
             .rotateY(1.4).translate(w.from - 0.03, floor + 0.98, door), mats.timber);
         // Floor, roof and ceiling.
         addMesh(new THREE.BoxGeometry(w.to - w.from - 2 * t, 0.05, w.width - 2 * t).translate((w.from + w.to) / 2, floor + 0.025, 0), mats.deck);
-        box(w.from - 0.12, w.to + 0.12, roof, 0.1, w.width + 0.24, mats.paint);
+        box(w.from - 0.12, w.to + 0.12, roof, 0.1, w.width + 0.24, mats.deckhead);
         // Open bridge rail on the roof.
         const r = roof + 0.1 + 0.95, corners = [[w.from, r, -hw], [w.to, r, -hw], [w.to, r, hw], [w.from, r, hw]];
         for (let k = 0; k < 4; k++) bar(corners[k], corners[(k + 1) % 4], 0.025, mats.paint, 6);
         for (const [x, , z] of corners) bar([x, roof + 0.1, z], [x, r, z], 0.025, mats.paint, 6);
 
-        inside = buildBridge({ w, hw, floor, roof, addMesh, bar, mats });
+        inside = buildBridge({ w, hw, floor, roof, addMesh, bar, mats, fadeHooks, ship: () => shipGroup });
         inside.bounds = { x0: w.from - 0.2, x1: w.to + 0.2, y0: floor - 0.3, y1: roof + 0.3, z: hw + 0.2 };
     }
 
@@ -1027,7 +1041,7 @@ function makeGhost(g) {
     const label = makeTextSprite(g.label || 'As built, indicative');
     label.position.fromArray(warp([g.funnel ? g.funnel.at : 0, Math.max(funnelTop, roof) + 1.4, 0]));
 
-    const ship = new THREE.Group();
+    const ship = shipGroup;
     ship.add(...meshes, label);
 
     // Ship frame to model coordinates.
@@ -1059,6 +1073,7 @@ function makeGhost(g) {
                 m.opacity = o;
             }
             label.material.opacity = o;
+            for (const hook of fadeHooks) hook(o);
         }
     };
 }
@@ -1326,52 +1341,66 @@ function drawFunnel() {
 // Fittings of a steam tug's wheelhouse of the 1890s, placed in the ship's
 // frame (x forward, y up, z to starboard). Indicative, not from the Euro's
 // plans. Returns where a visitor stands and looks.
-function buildBridge({ w, hw, floor, roof, addMesh, bar, mats }) {
+function buildBridge({ w, hw, floor, roof, addMesh, bar, mats, fadeHooks, ship }) {
     const at = (geo, x, y, z) => geo.translate(x, y, z);
+    const V2 = (r, y) => new THREE.Vector2(r, y);
+    // A turned (lathe) part from a profile of [radius, height] pairs.
+    const turned = (profile, segments = 28) => new THREE.LatheGeometry(profile.map(([r, y]) => V2(r, y)), segments);
+    const along = (geo, dir) => geo.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize()));
+
     const xw = w.to - 1.0;              // plane of the wheel
     const yw = floor + 1.05;            // wheel centre height
     const R = 0.55;                     // wheel radius to the rim
 
-    // Steering column (cast iron) with its gear box, just ahead of the wheel.
-    addMesh(at(new THREE.CylinderGeometry(0.09, 0.13, yw - floor - 0.1, 16), xw + 0.18, floor + (yw - floor - 0.1) / 2, 0), mats.iron);
-    addMesh(at(new THREE.BoxGeometry(0.28, 0.3, 0.26), xw + 0.18, yw, 0), mats.iron);
-    addMesh(at(new THREE.CylinderGeometry(0.035, 0.035, 0.22, 10).rotateZ(Math.PI / 2), xw + 0.06, yw, 0), mats.brass);
+    // Helmsman's grating: teak slats on bearers, where the master stands.
+    const gx0 = xw - 1.05, gx1 = xw - 0.12, gz = 0.5;
+    for (const z of [-gz + 0.04, 0, gz - 0.04]) addMesh(at(new THREE.BoxGeometry(gx1 - gx0, 0.04, 0.05), (gx0 + gx1) / 2, floor + 0.07, z), mats.darkTimber);
+    for (let x = gx0 + 0.03; x < gx1; x += 0.075) addMesh(at(new THREE.BoxGeometry(0.045, 0.025, gz * 2), x, floor + 0.1, 0), mats.timber);
 
-    // Spoked wooden wheel with turned handles and a brass hub.
-    addMesh(at(new THREE.TorusGeometry(R, 0.035, 10, 48).rotateY(Math.PI / 2), xw, yw, 0), mats.darkTimber);
-    addMesh(at(new THREE.TorusGeometry(R * 0.55, 0.018, 8, 32).rotateY(Math.PI / 2), xw, yw, 0), mats.brass);
-    addMesh(at(new THREE.CylinderGeometry(0.09, 0.09, 0.12, 16).rotateZ(Math.PI / 2), xw, yw, 0), mats.brass);
+    // Steering column (cast iron, turned) with its gear box, ahead of the wheel.
+    addMesh(at(turned([[0, 0], [0.17, 0], [0.17, 0.04], [0.12, 0.08], [0.1, 0.2], [0.085, 0.75], [0.11, 0.82], [0.11, 0.86], [0, 0.86]]), xw + 0.2, floor, 0), mats.iron);
+    addMesh(at(new THREE.BoxGeometry(0.3, 0.3, 0.27), xw + 0.2, yw, 0), mats.iron);
+    addMesh(at(new THREE.CylinderGeometry(0.035, 0.035, 0.24, 12).rotateZ(Math.PI / 2), xw + 0.07, yw, 0), mats.brass);
+
+    // Spoked wheel: varnished rim with a brass ring, turned spokes running out
+    // through the rim into handles, and a brass hub.
+    addMesh(at(new THREE.TorusGeometry(R, 0.038, 12, 64).rotateY(Math.PI / 2), xw, yw, 0), mats.darkTimber);
+    addMesh(at(new THREE.TorusGeometry(R, 0.012, 6, 64).rotateY(Math.PI / 2), xw - 0.035, yw, 0), mats.brass);
+    addMesh(at(new THREE.TorusGeometry(R * 0.5, 0.02, 8, 40).rotateY(Math.PI / 2), xw, yw, 0), mats.brass);
+    addMesh(at(turned([[0, -0.08], [0.085, -0.08], [0.1, -0.05], [0.1, 0.05], [0.07, 0.08], [0.03, 0.09], [0, 0.09]]).rotateZ(Math.PI / 2), xw, yw, 0), mats.brass);
+    const spoke = turned([[0.02, 0.06], [0.024, 0.2], [0.02, 0.4], [0.026, R - 0.03], [0.02, R + 0.03], [0.022, R + 0.06],
+        [0.03, R + 0.1], [0.033, R + 0.15], [0.028, R + 0.19], [0.03, R + 0.21], [0.015, R + 0.23], [0, R + 0.235]], 12);
     for (let k = 0; k < 8; k++) {
         const a = (k / 8) * Math.PI * 2;
-        const dy = Math.cos(a), dz = Math.sin(a);
-        bar([xw, yw + dy * 0.08, dz * 0.08], [xw, yw + dy * (R + 0.04), dz * (R + 0.04)], 0.018, mats.darkTimber, 6);
-        const handle = new THREE.CapsuleGeometry(0.026, 0.1, 4, 8);
-        handle.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, dy, dz)));
-        addMesh(at(handle, xw, yw + dy * (R + 0.12), dz * (R + 0.12)), mats.darkTimber);
+        addMesh(at(along(spoke.clone(), new THREE.Vector3(0, Math.cos(a), Math.sin(a))), xw, yw, 0), mats.darkTimber);
     }
 
-    // Binnacle: timber pedestal, brass bowl with the compass card under
-    // glass, a hood over the forward half, quadrantal spheres either side
-    // and a Flinders bar ahead.
-    const xb = w.to - 0.42, yb = floor + 1.02;
-    addMesh(at(new THREE.CylinderGeometry(0.15, 0.2, yb - floor, 20), xb, floor + (yb - floor) / 2, 0), mats.darkTimber);
-    addMesh(at(new THREE.CylinderGeometry(0.2, 0.17, 0.12, 24), xb, yb + 0.06, 0), mats.brass);
-    addMesh(at(new THREE.CircleGeometry(0.17, 32).rotateX(-Math.PI / 2).rotateY(-Math.PI / 2), xb, yb + 0.125, 0), mats.compass, 'given');
-    addMesh(at(new THREE.SphereGeometry(0.2, 24, 12, Math.PI / 2, Math.PI, 0, Math.PI / 2), xb, yb + 0.12, 0), mats.brass);
-    addMesh(at(new THREE.CylinderGeometry(0.035, 0.035, 0.14, 10), xb + 0.05, yb + 0.38, 0), mats.brass);   // lamp chimney
+    // Binnacle: turned mahogany pedestal, brass bowl with the compass card
+    // under glass, a brass hood over the forward half with a lamp chimney,
+    // quadrantal spheres either side and a Flinders bar ahead.
+    const xb = w.to - 0.42, yb = floor + 1.0;
+    addMesh(at(turned([[0, 0], [0.24, 0], [0.24, 0.05], [0.2, 0.09], [0.16, 0.14], [0.13, 0.5], [0.15, 0.85], [0.2, 0.92], [0.2, 0.96], [0, 0.96]]), xb, floor, 0), mats.darkTimber);
+    addMesh(at(turned([[0, 0], [0.2, 0], [0.21, 0.04], [0.2, 0.12], [0.18, 0.13], [0, 0.13]], 36), xb, yb - 0.04, 0), mats.brass);
+    addMesh(at(new THREE.CircleGeometry(0.17, 40).rotateX(-Math.PI / 2).rotateY(-Math.PI / 2), xb, yb + 0.085, 0), mats.compass, 'given');
+    addMesh(at(new THREE.CircleGeometry(0.18, 40).rotateX(-Math.PI / 2), xb, yb + 0.09, 0), mats.glass, 'given');
+    addMesh(at(new THREE.SphereGeometry(0.205, 32, 16, Math.PI / 2, Math.PI, 0, Math.PI / 2), xb, yb + 0.09, 0), mats.brass);
+    addMesh(at(turned([[0.04, 0], [0.04, 0.12], [0.055, 0.14], [0.03, 0.18], [0, 0.19]], 16), xb + 0.06, yb + 0.27, 0), mats.brass);
     for (const side of [-1, 1]) {
-        bar([xb, yb + 0.02, side * 0.18], [xb, yb + 0.02, side * 0.32], 0.015, mats.brass, 6);
-        addMesh(at(new THREE.SphereGeometry(0.075, 16, 12), xb, yb + 0.02, side * 0.36), side > 0 ? mats.green : mats.red);
+        bar([xb, yb, side * 0.2], [xb, yb, side * 0.31], 0.015, mats.brass, 8);
+        addMesh(at(new THREE.SphereGeometry(0.075, 24, 16), xb, yb, side * 0.36), side > 0 ? mats.green : mats.red);
     }
-    addMesh(at(new THREE.CylinderGeometry(0.04, 0.04, 0.45, 12), xb + 0.22, yb - 0.3, 0), mats.iron);
+    addMesh(at(new THREE.CylinderGeometry(0.04, 0.04, 0.45, 16), xb + 0.22, yb - 0.32, 0), mats.iron);
+    addMesh(at(new THREE.SphereGeometry(0.042, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), xb + 0.22, yb - 0.095, 0), mats.brass);
 
-    // Engine room telegraph on the starboard side.
+    // Engine room telegraph on the starboard side: a brass column and head,
+    // dial under glass, and the handle.
     const xt = w.to - 0.55, zt = Math.min(0.95, hw - 0.35), yt = floor + 1.12;
-    addMesh(at(new THREE.CylinderGeometry(0.05, 0.08, yt - floor, 14), xt, floor + (yt - floor) / 2, zt), mats.brass);
-    addMesh(at(new THREE.CylinderGeometry(0.21, 0.21, 0.13, 32).rotateZ(Math.PI / 2), xt, yt + 0.12, zt), mats.brass);
-    addMesh(at(new THREE.CircleGeometry(0.18, 32).rotateY(-Math.PI / 2), xt - 0.067, yt + 0.12, zt), mats.telegraph, 'given');
-    bar([xt - 0.09, yt + 0.12, zt], [xt - 0.09, yt + 0.3, zt + 0.08], 0.014, mats.brass, 6);
-    addMesh(at(new THREE.SphereGeometry(0.03, 10, 8), xt - 0.09, yt + 0.31, zt + 0.085), mats.brass);
+    addMesh(at(turned([[0, 0], [0.16, 0], [0.16, 0.03], [0.1, 0.07], [0.055, 0.15], [0.045, 0.85], [0.07, 0.95], [0.07, 1.0], [0, 1.0]]), xt, floor, zt), mats.brass);
+    addMesh(at(turned([[0, -0.075], [0.21, -0.075], [0.225, -0.05], [0.225, 0.05], [0.21, 0.075], [0, 0.075]], 40).rotateZ(Math.PI / 2), xt, yt + 0.12, zt), mats.brass);
+    addMesh(at(new THREE.CircleGeometry(0.18, 40).rotateY(-Math.PI / 2), xt - 0.077, yt + 0.12, zt), mats.telegraph, 'given');
+    addMesh(at(new THREE.CircleGeometry(0.185, 40).rotateY(-Math.PI / 2), xt - 0.083, yt + 0.12, zt), mats.glass, 'given');
+    bar([xt - 0.1, yt + 0.12, zt], [xt - 0.1, yt + 0.32, zt + 0.09], 0.016, mats.brass, 10);
+    addMesh(at(turned([[0, 0], [0.025, 0], [0.032, 0.03], [0.028, 0.07], [0, 0.08]], 12).rotateX(-0.42), xt - 0.1, yt + 0.31, zt + 0.085), mats.darkTimber);
 
     // Voice pipe to the engine room, port side, with a whistle mouthpiece.
     const xv = w.to - 0.5, zv = -Math.min(0.95, hw - 0.35);
@@ -1379,40 +1408,62 @@ function buildBridge({ w, hw, floor, roof, addMesh, bar, mats }) {
         new THREE.Vector3(xv, floor, zv), new THREE.Vector3(xv, floor + 1.22, zv),
         new THREE.Vector3(xv - 0.05, floor + 1.36, zv), new THREE.Vector3(xv - 0.18, floor + 1.41, zv)
     ]);
-    addMesh(new THREE.TubeGeometry(pipe, 24, 0.035, 10, false), mats.brass);
-    addMesh(at(new THREE.CylinderGeometry(0.045, 0.075, 0.12, 16, 1, true).rotateZ(Math.PI / 2), xv - 0.24, floor + 1.41, zv), mats.brass);
+    addMesh(new THREE.TubeGeometry(pipe, 32, 0.035, 14, false), mats.brass);
+    addMesh(at(turned([[0.036, 0], [0.04, 0.02], [0.08, 0.1], [0.085, 0.12], [0.075, 0.12]], 24).rotateZ(Math.PI / 2), xv - 0.18, floor + 1.41, zv), mats.brass);
+    addMesh(at(new THREE.SphereGeometry(0.022, 10, 8), xv - 0.3, floor + 1.41, zv), mats.brass);   // whistle stopper on its chain
+    bar([xv - 0.2, floor + 1.38, zv], [xv - 0.29, floor + 1.4, zv], 0.004, mats.brass, 4);
 
-    // Chart table in the after port corner, with a chart on it.
+    // Chart table in the after port corner, with drawers and a chart.
     const cx0 = w.from + 0.1, cx1 = w.from + 1.0, cz0 = -hw + 0.08, cz1 = -hw + 0.68;
     addMesh(new THREE.BoxGeometry(cx1 - cx0, 0.9, cz1 - cz0).translate((cx0 + cx1) / 2, floor + 0.45, (cz0 + cz1) / 2), mats.darkTimber);
     addMesh(new THREE.BoxGeometry(cx1 - cx0 + 0.06, 0.04, cz1 - cz0 + 0.06).translate((cx0 + cx1) / 2, floor + 0.92, (cz0 + cz1) / 2), mats.darkTimber);
+    for (const y of [0.25, 0.5, 0.72]) {
+        addMesh(new THREE.BoxGeometry(cx1 - cx0 - 0.08, 0.004, 0.006).translate((cx0 + cx1) / 2, floor + y + 0.1, cz1 + 0.002), mats.leather);
+        addMesh(new THREE.SphereGeometry(0.018, 10, 8).translate((cx0 + cx1) / 2, floor + y, cz1 + 0.012), mats.brass);
+    }
     addMesh(at(new THREE.PlaneGeometry(0.75, 0.5).rotateX(-Math.PI / 2).rotateY(0.08), (cx0 + cx1) / 2, floor + 0.945, (cz0 + cz1) / 2), mats.chart, 'given');
+    // Dividers and a pencil on the chart.
+    bar([cx0 + 0.3, floor + 0.95, cz0 + 0.25], [cx0 + 0.42, floor + 0.95, cz0 + 0.31], 0.004, mats.brass, 4);
+    bar([cx0 + 0.3, floor + 0.95, cz0 + 0.25], [cx0 + 0.41, floor + 0.95, cz0 + 0.2], 0.004, mats.brass, 4);
+    bar([cx0 + 0.55, floor + 0.95, cz0 + 0.35], [cx0 + 0.7, floor + 0.95, cz0 + 0.32], 0.005, mats.red, 6);
 
-    // Clock and barometer on the after bulkhead.
+    // Clock and barometer on the after bulkhead; a framed certificate.
     for (const [z, mat] of [[0.75, mats.clock], [1.15, mats.compass]]) {
         if (z > hw - 0.15) continue;
         const x = w.from + 0.065, y = floor + 1.72;
-        addMesh(at(new THREE.TorusGeometry(0.12, 0.02, 8, 24).rotateY(Math.PI / 2), x, y, z), mats.brass);
-        addMesh(at(new THREE.CircleGeometry(0.115, 24).rotateY(Math.PI / 2), x + 0.004, y, z), mat, 'given');
+        addMesh(at(turned([[0.105, 0], [0.13, 0], [0.135, 0.02], [0.125, 0.04], [0.105, 0.04]], 32).rotateZ(-Math.PI / 2), x - 0.02, y, z), mats.brass);
+        addMesh(at(new THREE.CircleGeometry(0.11, 32).rotateY(Math.PI / 2), x + 0.004, y, z), mat, 'given');
+        addMesh(at(new THREE.CircleGeometry(0.112, 32).rotateY(Math.PI / 2), x + 0.012, y, z), mats.glass, 'given');
+    }
+    {
+        const x = w.from + 0.07, y = floor + 1.5, z = -0.95;
+        if (z > -hw + 0.3) {
+            addMesh(at(new THREE.BoxGeometry(0.025, 0.42, 0.34), x, y, z), mats.darkTimber);
+            addMesh(at(new THREE.PlaneGeometry(0.28, 0.36).rotateY(Math.PI / 2), x + 0.014, y, z), mats.certificate, 'given');
+        }
     }
 
-    // Oil lamp hanging from the deckhead.
-    const xl = (w.from + w.to) / 2 - 0.3;
-    bar([xl, roof, 0], [xl, roof - 0.32, 0], 0.008, mats.brass, 4);
-    addMesh(at(new THREE.CylinderGeometry(0.1, 0.07, 0.06, 16), xl, roof - 0.35, 0), mats.brass);
-    addMesh(at(new THREE.CylinderGeometry(0.065, 0.065, 0.16, 16), xl, roof - 0.46, 0), mats.lampGlass);
-    addMesh(at(new THREE.CylinderGeometry(0.075, 0.09, 0.05, 16), xl, roof - 0.565, 0), mats.brass);
+    // Oil lamp hanging from the deckhead: brass smoke bell, glass chimney,
+    // brass fount. It lights the wheelhouse.
+    const xl = (w.from + w.to) / 2 - 0.3, ly = roof - 0.5;
+    bar([xl, roof, 0], [xl, roof - 0.26, 0], 0.006, mats.brass, 4);
+    addMesh(at(turned([[0, 0.1], [0.04, 0.1], [0.11, 0.03], [0.12, 0.0], [0.1, 0.0]], 28), xl, roof - 0.37, 0), mats.brass);
+    addMesh(at(turned([[0.035, 0.0], [0.06, 0.03], [0.075, 0.08], [0.06, 0.15], [0.03, 0.2], [0.028, 0.24]], 24), xl, ly - 0.06, 0), mats.lampGlass);
+    addMesh(at(turned([[0, 0], [0.07, 0], [0.085, 0.03], [0.07, 0.06], [0.035, 0.07], [0, 0.07]], 24), xl, ly - 0.12, 0), mats.brass);
+    const lamp = new THREE.PointLight('#ffb35c', 0, 4, 2);
+    lamp.position.set(xl, ly, 0);
+    lamp.castShadow = false;
+    const glow = makeGlowSprite();
+    glow.position.set(xl, ly + 0.03, 0);
+    ship().add(lamp, glow);
+    fadeHooks.push((o) => { lamp.intensity = 0.8 * o; glow.material.opacity = 0.6 * o; });
 
     // Ship's bell outside, on the front of the wheelhouse.
-    const bell = new THREE.LatheGeometry([
-        new THREE.Vector2(0.0, 0.2), new THREE.Vector2(0.06, 0.2), new THREE.Vector2(0.08, 0.15),
-        new THREE.Vector2(0.09, 0.06), new THREE.Vector2(0.12, 0.0), new THREE.Vector2(0.11, 0.0)
-    ], 24);
-    addMesh(at(bell, w.to + 0.16, floor + 1.88, hw - 0.45), mats.brass);
-    bar([w.to + 0.03, floor + 2.1, hw - 0.45], [w.to + 0.16, floor + 2.1, hw - 0.45], 0.015, mats.brass, 6);
+    addMesh(at(turned([[0, 0.2], [0.05, 0.2], [0.07, 0.17], [0.08, 0.1], [0.095, 0.04], [0.125, 0], [0.115, 0]], 32), w.to + 0.16, floor + 1.88, hw - 0.45), mats.brass);
+    bar([w.to + 0.03, floor + 2.1, hw - 0.45], [w.to + 0.16, floor + 2.1, hw - 0.45], 0.015, mats.brass, 8);
 
     // The master at the wheel.
-    buildMaster({ x: xw - 0.47, floor, xw, yw, R, addMesh, mats });
+    buildMaster({ x: xw - 0.47, floor: floor + 0.115, xw, yw, R, addMesh, mats });
 
     return {
         // Stand aft on the port side, looking past the master to the wheel
@@ -1423,44 +1474,74 @@ function buildBridge({ w, hw, floor, roof, addMesh, bar, mats }) {
     };
 }
 
+// A soft warm halo for the lamp (there is no bloom in the renderer).
+function makeGlowSprite() {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 128;
+    const c = canvas.getContext('2d');
+    const g = c.createRadialGradient(64, 64, 0, 64, 64, 64);
+    g.addColorStop(0, 'rgba(255,214,150,0.9)');
+    g.addColorStop(0.25, 'rgba(255,190,110,0.35)');
+    g.addColorStop(1, 'rgba(255,170,80,0)');
+    c.fillStyle = g;
+    c.fillRect(0, 0, 128, 128);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0, fog: false }));
+    sprite.scale.setScalar(0.55);
+    sprite.raycast = () => {};
+    return sprite;
+}
+
 // A master in a double breasted reefer and peaked cap, both hands on the
-// wheel. Built from simple shapes in the ship's frame, facing forward.
+// wheel. Built from turned and moulded shapes in the ship's frame, facing
+// forward; feet on the grating at floor.
 function buildMaster({ x, floor, xw, yw, R, addMesh, mats }) {
     const V = (a, b, c) => new THREE.Vector3(a, b, c);
-    const limb = (a, b, r, mat) => {
+    const turned = (profile, segments = 32) => new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), segments);
+    const limb = (a, b, r0, r1, mat) => {
         const d = b.clone().sub(a);
-        const geo = new THREE.CapsuleGeometry(r, Math.max(0.01, d.length() - r), 6, 12);
+        const geo = new THREE.CylinderGeometry(r1, r0, d.length(), 16, 1, false);
         geo.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(V(0, 1, 0), d.clone().normalize()));
         const m = a.clone().add(b).multiplyScalar(0.5);
         addMesh(geo.translate(m.x, m.y, m.z), mat);
+        addMesh(new THREE.SphereGeometry(Math.max(r0, r1) * 0.98, 16, 12).translate(b.x, b.y, b.z), mat);   // rounded joint
     };
     const f = floor;
-    // Boots and legs.
+
+    // Boots, trousers.
     for (const s of [-1, 1]) {
-        addMesh(new THREE.BoxGeometry(0.28, 0.09, 0.11).translate(x + 0.05, f + 0.045, s * 0.11), mats.leather);
-        limb(V(x, f + 0.1, s * 0.11), V(x, f + 0.9, s * 0.1), 0.075, mats.wool);
+        const boot = turned([[0, 0], [0.055, 0], [0.06, 0.03], [0.05, 0.09], [0.047, 0.13], [0, 0.13]], 20);
+        boot.scale(2.4, 1, 1.0).translate(x + 0.06, f, s * 0.11);
+        addMesh(boot, mats.leather);
+        limb(V(x, f + 0.12, s * 0.11), V(x + 0.01, f + 0.5, s * 0.105), 0.058, 0.066, mats.wool);
+        limb(V(x + 0.01, f + 0.5, s * 0.105), V(x, f + 0.9, s * 0.1), 0.066, 0.078, mats.wool);
     }
-    // Reefer jacket: a lathed body, broad across the shoulders.
-    const body = new THREE.LatheGeometry([
-        V(0.0, 0.78), V(0.17, 0.78), V(0.175, 0.95), V(0.16, 1.08), V(0.18, 1.28), V(0.2, 1.42),
-        V(0.12, 1.5), V(0.06, 1.53), V(0.0, 1.53)
-    ].map((v) => new THREE.Vector2(v.x, v.y)), 28);
-    body.scale(0.72, 1, 1.12);
+    // Reefer jacket: shaped body, broad shoulders, double breasted front.
+    const body = turned([[0.0, 0.78], [0.165, 0.78], [0.172, 0.86], [0.168, 0.98], [0.158, 1.08], [0.172, 1.2], [0.19, 1.32],
+        [0.205, 1.42], [0.17, 1.48], [0.1, 1.52], [0.065, 1.535], [0.0, 1.54]], 40);
+    body.scale(0.7, 1, 1.12);
     addMesh(body.translate(x, f, 0), mats.wool);
-    // Two rows of brass buttons.
-    for (const s of [-1, 1]) for (let k = 0; k < 4; k++) {
-        const y = f + 1.02 + k * 0.09;
-        addMesh(new THREE.SphereGeometry(0.012, 8, 6).translate(x + 0.135, y, s * 0.06), mats.brass);
+    // Lapels and collar.
+    for (const s of [-1, 1]) {
+        const lapel = new THREE.BoxGeometry(0.012, 0.2, 0.07);
+        lapel.rotateX(s * 0.35).translate(x + 0.122, f + 1.39, s * 0.05);
+        addMesh(lapel, mats.wool);
     }
-    // Shirt collar and tie.
-    addMesh(new THREE.CylinderGeometry(0.06, 0.065, 0.05, 16).translate(x, f + 1.52, 0), mats.shirt);
-    addMesh(new THREE.BoxGeometry(0.02, 0.1, 0.035).translate(x + 0.055, f + 1.47, 0), mats.leather);
-    // Arms reaching to the rim at about ten to two, elbows down and out.
-    const Lu = 0.3, Lf = 0.29;
+    for (const s of [-1, 1]) for (let k = 0; k < 4; k++) {
+        const y = f + 1.0 + k * 0.085;
+        addMesh(new THREE.SphereGeometry(0.011, 10, 8).scale(0.6, 1, 1).translate(x + 0.122 + (k < 1 ? 0.004 : 0), y, s * 0.065), mats.brass);
+    }
+    addMesh(new THREE.CylinderGeometry(0.058, 0.064, 0.05, 20).translate(x, f + 1.525, 0), mats.shirt);
+    addMesh(turned([[0, 0], [0.018, 0], [0.012, 0.09], [0, 0.1]], 10).rotateZ(Math.PI).translate(x + 0.064, f + 1.52, 0), mats.leather);   // tie
+
+    // Arms to the rim at about ten to two; hands closed round the rim.
+    const Lu = 0.3, Lf = 0.28;
     for (const s of [-1, 1]) {
         const th = THREE.MathUtils.degToRad(52);
-        const hand = V(xw - 0.05, yw + Math.cos(th) * R, s * Math.sin(th) * R);
-        const shoulder = V(x, f + 1.42, s * 0.22);
+        const grip = V(xw - 0.02, yw + Math.cos(th) * R, s * Math.sin(th) * R);   // on the rim
+        const hand = grip.clone().add(V(-0.06, 0.01, -s * 0.0));
+        const shoulder = V(x, f + 1.42, s * 0.215);
         const d = hand.clone().sub(shoulder), D = Math.min(d.length(), Lu + Lf - 0.01);
         const dn = d.clone().normalize();
         const a = (Lu * Lu - Lf * Lf + D * D) / (2 * D);
@@ -1468,36 +1549,268 @@ function buildMaster({ x, floor, xw, yw, R, addMesh, mats }) {
         const pole = V(-0.2, -1, s * 0.6);
         const perp = pole.sub(dn.clone().multiplyScalar(pole.dot(dn))).normalize();
         const elbow = shoulder.clone().addScaledVector(dn, a).addScaledVector(perp, hgt);
-        const wrist = elbow.clone().addScaledVector(hand.clone().sub(elbow).normalize(), Lf - 0.03);
-        limb(shoulder, elbow, 0.058, mats.wool);
-        limb(elbow, wrist, 0.05, mats.wool);
-        addMesh(new THREE.TorusGeometry(0.05, 0.008, 6, 16).lookAt(hand.clone().sub(elbow)).translate(wrist.x, wrist.y, wrist.z), mats.brass); // cuff braid
-        addMesh(new THREE.SphereGeometry(0.045, 12, 10).scale(1.2, 0.8, 1).translate(hand.x - 0.01, hand.y, hand.z), mats.skin);
-        addMesh(new THREE.SphereGeometry(0.075, 16, 12).scale(1, 0.75, 1).translate(shoulder.x, shoulder.y + 0.02, shoulder.z), mats.wool);
+        const wrist = elbow.clone().addScaledVector(hand.clone().sub(elbow).normalize(), Lf - 0.02);
+        limb(shoulder, elbow, 0.062, 0.056, mats.wool);
+        limb(elbow, wrist, 0.056, 0.047, mats.wool);
+        addMesh(new THREE.TorusGeometry(0.047, 0.007, 8, 20).lookAt(hand.clone().sub(elbow)).translate(wrist.x, wrist.y, wrist.z), mats.brass);
+        addMesh(new THREE.SphereGeometry(0.07, 18, 12).scale(1, 0.78, 1).translate(shoulder.x, shoulder.y + 0.02, shoulder.z), mats.wool);
+        // Palm on the near side of the rim, fingers curled over and round it,
+        // thumb along it.
+        const palm = new THREE.SphereGeometry(0.045, 16, 12).scale(0.75, 1.05, 0.95);
+        palm.translate(grip.x - 0.05, grip.y, grip.z);
+        addMesh(palm, mats.skin);
+        const tangent = V(0, -Math.sin(th) * s, Math.cos(th)).multiplyScalar(s);   // along the rim at the grip
+        for (let k = 0; k < 4; k++) {
+            const off = (k - 1.5) * 0.02;
+            const base = grip.clone().addScaledVector(tangent, off).add(V(-0.04, 0.03, 0));
+            const curl = new THREE.CatmullRomCurve3([base, base.clone().add(V(0.035, 0.03, 0)), base.clone().add(V(0.075, 0.0, 0)), base.clone().add(V(0.06, -0.045, 0))]);
+            addMesh(new THREE.TubeGeometry(curl, 8, 0.0095, 8, false), mats.skin);
+        }
+        const thumbBase = grip.clone().add(V(-0.04, -0.02, 0));
+        addMesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([thumbBase, thumbBase.clone().addScaledVector(tangent, 0.035).add(V(0.02, -0.01, 0)), thumbBase.clone().addScaledVector(tangent, 0.06).add(V(0.035, -0.015, 0))]), 8, 0.011, 8, false), mats.skin);
     }
-    // Neck and head.
-    addMesh(new THREE.CylinderGeometry(0.05, 0.055, 0.08, 14).translate(x, f + 1.57, 0), mats.skin);
-    const hy = f + 1.67;
-    addMesh(new THREE.SphereGeometry(0.1, 28, 20).scale(1.0, 1.18, 0.9).translate(x, hy, 0), mats.skin);
+
+    // Neck and head, the head turned on a profile: crown, brow, cheeks, jaw.
+    addMesh(new THREE.CylinderGeometry(0.048, 0.054, 0.08, 18).translate(x, f + 1.565, 0), mats.skin);
+    const hy = f + 1.6;
+    const head = turned([[0, 0], [0.04, 0.005], [0.062, 0.03], [0.074, 0.065], [0.083, 0.1], [0.09, 0.135], [0.094, 0.17], [0.09, 0.2], [0.075, 0.235], [0.045, 0.255], [0, 0.262]], 40);
+    head.scale(1.12, 1, 0.9);
+    addMesh(head.translate(x, hy, 0), mats.skin);
     for (const s of [-1, 1]) {
-        addMesh(new THREE.SphereGeometry(0.025, 10, 8).scale(0.6, 1.2, 1).translate(x - 0.005, hy, s * 0.092), mats.skin);   // ears
-        addMesh(new THREE.SphereGeometry(0.011, 8, 6).translate(x + 0.088, hy + 0.025, s * 0.035), mats.eye);            // eyes
-        addMesh(new THREE.BoxGeometry(0.01, 0.008, 0.035).translate(x + 0.093, hy + 0.045, s * 0.036), mats.beard);       // brows
+        addMesh(new THREE.SphereGeometry(0.024, 14, 10).scale(0.5, 1.25, 1).translate(x - 0.004, hy + 0.13, s * 0.088), mats.skin);       // ears
+        addMesh(new THREE.SphereGeometry(0.0115, 12, 10).translate(x + 0.096, hy + 0.15, s * 0.033), mats.eye);                           // eyes
+        addMesh(new THREE.SphereGeometry(0.016, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.45, 1.3).translate(x + 0.094, hy + 0.157, s * 0.033), mats.skin);   // lids
+        addMesh(new THREE.CapsuleGeometry(0.006, 0.03, 4, 8).rotateX(Math.PI / 2).rotateY(s * 0.15).translate(x + 0.1, hy + 0.173, s * 0.035), mats.beard);   // brows
+        addMesh(new THREE.SphereGeometry(0.03, 14, 10).scale(0.7, 0.6, 1).translate(x + 0.082, hy + 0.115, s * 0.045), mats.skin);         // cheeks
     }
-    addMesh(new THREE.ConeGeometry(0.018, 0.045, 10).rotateZ(-Math.PI / 2).translate(x + 0.112, hy, 0), mats.skin);   // nose
-    // Full grey beard and moustache.
-    // Beard along the jaw and chin, leaving the mouth; a moustache above.
-    addMesh(new THREE.SphereGeometry(0.1, 24, 16, Math.PI * 0.55, Math.PI * 0.9, Math.PI * 0.62, Math.PI * 0.38)
-        .scale(1.0, 1.45, 0.98).translate(x + 0.004, hy + 0.01, 0), mats.beard);
-    addMesh(new THREE.SphereGeometry(0.06, 16, 10).scale(0.75, 0.9, 1.1).translate(x + 0.05, hy - 0.115, 0), mats.beard);
-    addMesh(new THREE.CapsuleGeometry(0.011, 0.055, 4, 8).rotateX(Math.PI / 2).translate(x + 0.1, hy - 0.03, 0), mats.beard);
-    addMesh(new THREE.BoxGeometry(0.008, 0.008, 0.035).translate(x + 0.098, hy - 0.052, 0), mats.red);   // lips
-    // Peaked cap: band, crown, peak and badge.
-    addMesh(new THREE.CylinderGeometry(0.104, 0.102, 0.05, 28).translate(x, hy + 0.11, 0), mats.leather);
-    addMesh(new THREE.CylinderGeometry(0.125, 0.106, 0.05, 28).scale(1.05, 1, 1).translate(x - 0.005, hy + 0.155, 0), mats.wool);
-    addMesh(new THREE.CircleGeometry(0.1, 20, -Math.PI / 2, Math.PI).rotateX(-Math.PI / 2).rotateZ(-0.35)
-        .scale(0.8, 1, 1).translate(x + 0.07, hy + 0.09, 0), mats.leather);
-    addMesh(new THREE.BoxGeometry(0.01, 0.025, 0.04).translate(x + 0.104, hy + 0.115, 0), mats.brass);
+    addMesh(turned([[0, 0], [0.016, 0.004], [0.013, 0.035], [0.006, 0.05], [0, 0.052]], 14).rotateZ(-Math.PI / 2 + 0.25).translate(x + 0.098, hy + 0.13, 0), mats.skin);   // nose
+    // Grey hair at the back and sides, below the cap.
+    addMesh(new THREE.SphereGeometry(0.097, 28, 12, -Math.PI * 0.75, Math.PI * 1.5, Math.PI * 0.32, Math.PI * 0.22).scale(1.08, 1, 0.92).translate(x - 0.004, hy + 0.17, 0), mats.beard);
+    // Full beard along the jaw and chin, moustache, lips.
+    addMesh(new THREE.SphereGeometry(0.098, 28, 16, Math.PI * 0.55, Math.PI * 0.9, Math.PI * 0.55, Math.PI * 0.42)
+        .scale(1.1, 1.3, 0.94).translate(x + 0.004, hy + 0.11, 0), mats.beard);
+    addMesh(new THREE.SphereGeometry(0.055, 18, 12).scale(0.8, 0.95, 1.05).translate(x + 0.055, hy + 0.035, 0), mats.beard);
+    addMesh(new THREE.CapsuleGeometry(0.011, 0.055, 4, 10).rotateX(Math.PI / 2).translate(x + 0.106, hy + 0.098, 0), mats.beard);
+    addMesh(new THREE.CapsuleGeometry(0.005, 0.03, 4, 8).rotateX(Math.PI / 2).translate(x + 0.103, hy + 0.083, 0), mats.lips);
+    // Peaked cap: black band, navy crown with a welt, patent leather peak,
+    // gilt badge.
+    addMesh(new THREE.CylinderGeometry(0.1, 0.098, 0.05, 32).scale(1.1, 1, 0.92).translate(x, hy + 0.225, 0), mats.leather);
+    addMesh(turned([[0, 0.05], [0.12, 0.05], [0.125, 0.04], [0.115, 0.01], [0.1, 0.0], [0, 0.0]], 40).scale(1.12, 1, 0.95).translate(x - 0.004, hy + 0.245, 0), mats.wool);
+    addMesh(new THREE.CircleGeometry(0.095, 24, -Math.PI / 2, Math.PI).rotateX(-Math.PI / 2).rotateZ(-0.38)
+        .scale(0.75, 1, 1).translate(x + 0.085, hy + 0.208, 0), mats.leather);
+    addMesh(new THREE.BoxGeometry(0.006, 0.03, 0.045).translate(x + 0.112, hy + 0.232, 0), mats.brass);
+}
+
+// ── Wheelhouse materials: panelling, deckhead, reflections, normal maps ──
+//
+// The surfaces inside get relief (normal maps) and reflect a lit wheelhouse
+// (an environment map rendered once from a simple room with bright windows
+// and the lamp), so brass, glass and varnish catch light as they would.
+
+let wheelhouseEnv = null;
+function interiorEnvironment(renderer) {
+    if (wheelhouseEnv || !renderer) return wheelhouseEnv;
+    const scene = new THREE.Scene();
+    const basic = (colour, k = 1) => new THREE.MeshBasicMaterial({ color: new THREE.Color(colour).multiplyScalar(k), side: THREE.DoubleSide });
+    const room = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2.2, 3.2), basic('#4a2a16', 1));
+    room.material.side = THREE.BackSide;
+    scene.add(room);
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(2.7, 3.1), basic('#e9e1cf', 0.9));
+    ceiling.rotation.x = Math.PI / 2; ceiling.position.y = 1.09; scene.add(ceiling);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(2.7, 3.1), basic('#6b5136', 0.7));
+    floor.rotation.x = -Math.PI / 2; floor.position.y = -1.09; scene.add(floor);
+    const window = (w, h, x, y, z, ry) => {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), basic('#8fd0d8', 2.6));
+        m.position.set(x, y, z); m.rotation.y = ry; scene.add(m);
+    };
+    for (let k = -2; k <= 2; k++) window(0.5, 0.7, 1.39, 0.35, k * 0.62, -Math.PI / 2);
+    for (const s of [-1, 1]) for (let k = -1; k <= 1; k++) window(0.7, 0.7, k * 0.85, 0.35, s * 1.59, s > 0 ? Math.PI : 0);
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 12), basic('#ffbf70', 14));
+    lamp.position.set(-0.3, 0.6, 0); scene.add(lamp);
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    wheelhouseEnv = pmrem.fromScene(scene, 0.02).texture;
+    pmrem.dispose();
+    return wheelhouseEnv;
+}
+
+// A tangent-space normal map from a height canvas (white is high).
+function normalFromHeight(canvas, strength = 2) {
+    const w = canvas.width, h = canvas.height;
+    const src = canvas.getContext('2d').getImageData(0, 0, w, h).data;
+    const out = document.createElement('canvas');
+    out.width = w; out.height = h;
+    const ctx = out.getContext('2d');
+    const img = ctx.createImageData(w, h);
+    const H = (x, y) => src[(((y + h) % h) * w + ((x + w) % w)) * 4] / 255;
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const dx = (H(x + 1, y) - H(x - 1, y)) * strength;
+            const dy = (H(x, y + 1) - H(x, y - 1)) * strength;
+            const len = Math.hypot(dx, dy, 1);
+            const i = (y * w + x) * 4;
+            img.data[i] = (-dx / len * 0.5 + 0.5) * 255;
+            img.data[i + 1] = (dy / len * 0.5 + 0.5) * 255;
+            img.data[i + 2] = (1 / len * 0.5 + 0.5) * 255;
+            img.data[i + 3] = 255;
+        }
+    }
+    ctx.putImageData(img, 0, 0);
+    return out;
+}
+
+// Frame and panel joinery 1.2 m wide and 2.4 m high from the floor: a
+// skirting, two raised panels below the sills, a moulded rail, vertical
+// tongue and groove boards above, and a cornice. Darkened into the corners.
+function drawPanelling() {
+    const P = 400, W = 1.2 * P, H = 2.4 * P;
+    const make = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+    const colour = make(), height = make();
+    const c = colour.getContext('2d'), h = height.getContext('2d');
+    const Y = (m) => H - m * P;                       // metres above the floor to canvas rows
+    const random = seededRandom(71);
+    const grain = (x0, y0, w, hgt, base, vertical) => {
+        c.fillStyle = base; c.fillRect(x0, y0, w, hgt);
+        for (let k = 0; k < (vertical ? w : hgt) / 3; k++) {
+            c.strokeStyle = `rgba(40,18,6,${0.06 + random() * 0.12})`;
+            c.lineWidth = 0.6 + random() * 1.4;
+            c.beginPath();
+            if (vertical) { const gx = x0 + random() * w; c.moveTo(gx, y0); for (let y = y0; y < y0 + hgt; y += 24) c.lineTo(gx + Math.sin(y * 0.013 + k) * 2.2, y); }
+            else { const gy = y0 + random() * hgt; c.moveTo(x0, gy); for (let x = x0; x < x0 + w; x += 24) c.lineTo(x, gy + Math.sin(x * 0.013 + k) * 2.2); }
+            c.stroke();
+        }
+    };
+    h.fillStyle = '#808080'; h.fillRect(0, 0, W, H);
+
+    // Upper boards: vertical tongue and groove, varnished teak.
+    const boardW = 0.09 * P;
+    for (let x = 0; x < W; x += boardW) {
+        const t = 0.9 + random() * 0.2;
+        grain(x, Y(2.25), boardW, Y(1.08) - Y(2.25), `rgb(${Math.round(132 * t)},${Math.round(82 * t)},${Math.round(44 * t)})`, true);
+        h.fillStyle = '#3a3a3a'; h.fillRect(x, Y(2.25), 3, Y(1.08) - Y(2.25));
+        h.fillStyle = '#9a9a9a'; h.fillRect(x + 3, Y(2.25), 2, Y(1.08) - Y(2.25));
+    }
+    // Lower framing: stiles and rails, mahogany.
+    grain(0, Y(1.08), W, Y(0) - Y(1.08), '#6e3519', false);
+    // Raised panels between stiles at 0 and 0.6 m.
+    const stile = 0.08 * P, railLo = 0.2, railHi = 0.92;
+    for (const px of [0, 0.6]) {
+        const x0 = px * P + stile, w = 0.6 * P - stile;
+        grain(x0, Y(railHi), w, Y(railLo) - Y(railHi), '#7d3f1f', true);
+        // Height: recessed field with a bevel up to the frame.
+        const bevel = 0.035 * P;
+        for (let k = 0; k < bevel; k++) {
+            const v = Math.round(70 + (k / bevel) * 50);
+            h.strokeStyle = `rgb(${v},${v},${v})`;
+            h.lineWidth = 1;
+            h.strokeRect(x0 + k, Y(railHi) + k, w - 2 * k, Y(railLo) - Y(railHi) - 2 * k);
+        }
+        h.fillStyle = '#787878';
+        h.fillRect(x0 + bevel, Y(railHi) + bevel, w - 2 * bevel, Y(railLo) - Y(railHi) - 2 * bevel);
+        // Bolection moulding: a light highlight and dark shadow line on the frame.
+        c.strokeStyle = 'rgba(255,220,180,0.18)'; c.lineWidth = 2; c.strokeRect(x0 - 2, Y(railHi) - 2, w + 4, Y(railLo) - Y(railHi) + 4);
+        c.strokeStyle = 'rgba(20,8,2,0.45)'; c.lineWidth = 3; c.strokeRect(x0 + 2, Y(railHi) + 2, w - 4, Y(railLo) - Y(railHi) - 4);
+    }
+    // Rail under the sills, skirting and cornice.
+    grain(0, Y(1.1), W, Y(0.98) - Y(1.1), '#5c2c14', false);
+    h.fillStyle = '#b0b0b0'; h.fillRect(0, Y(1.1), W, Y(1.04) - Y(1.1)); h.fillStyle = '#909090'; h.fillRect(0, Y(1.04), W, Y(0.98) - Y(1.04));
+    grain(0, Y(0.14), W, Y(0) - Y(0.14), '#3f1f0e', false);
+    h.fillStyle = '#9c9c9c'; h.fillRect(0, Y(0.14), W, Y(0) - Y(0.14));
+    grain(0, Y(2.4), W, Y(2.25) - Y(2.4), '#5c2c14', false);
+    h.fillStyle = '#a8a8a8'; h.fillRect(0, Y(2.4), W, Y(2.25) - Y(2.4));
+    // Varnish sheen and darkening into the floor and deckhead corners.
+    const ao = c.createLinearGradient(0, 0, 0, H);
+    ao.addColorStop(0, 'rgba(0,0,0,0.45)'); ao.addColorStop(0.1, 'rgba(0,0,0,0)');
+    ao.addColorStop(0.88, 'rgba(0,0,0,0)'); ao.addColorStop(1, 'rgba(0,0,0,0.4)');
+    c.fillStyle = ao; c.fillRect(0, 0, W, H);
+    noiseFill(c, W, H, 7, 72);
+    return { colour, normal: normalFromHeight(height, 3.2) };
+}
+
+// Fine twill for the master's wool coat, as a normal map.
+function drawTwill() {
+    const S = 256, canvas = document.createElement('canvas');
+    canvas.width = canvas.height = S;
+    const c = canvas.getContext('2d');
+    c.fillStyle = '#808080'; c.fillRect(0, 0, S, S);
+    for (let k = -S; k < S * 2; k += 6) {
+        c.strokeStyle = 'rgba(255,255,255,0.35)'; c.lineWidth = 2;
+        c.beginPath(); c.moveTo(k, 0); c.lineTo(k + S, S); c.stroke();
+    }
+    noiseFill(c, S, S, 30, 81);
+    return normalFromHeight(canvas, 1.5);
+}
+
+// Weathered skin: slight blotching and redness on the cheeks and nose.
+function drawSkin() {
+    const S = 256, canvas = document.createElement('canvas');
+    canvas.width = canvas.height = S;
+    const c = canvas.getContext('2d');
+    c.fillStyle = '#c69079'; c.fillRect(0, 0, S, S);
+    blotches(c, S, S, 50, ['rgba(170,90,70,0.12)', 'rgba(230,190,160,0.10)'], 91, [8, 40]);
+    noiseFill(c, S, S, 10, 92);
+    return canvas;
+}
+
+// A framed certificate: handwritten lines and a seal, not legible.
+function drawCertificate() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 280; canvas.height = 360;
+    const c = canvas.getContext('2d');
+    c.fillStyle = '#e9dfc3'; c.fillRect(0, 0, 280, 360);
+    c.strokeStyle = '#6b5a3a'; c.lineWidth = 3; c.strokeRect(12, 12, 256, 336);
+    c.fillStyle = '#3b3020'; c.font = 'bold 20px Georgia, serif'; c.textAlign = 'center';
+    c.fillText('CERTIFICATE', 140, 52);
+    const random = seededRandom(101);
+    c.strokeStyle = 'rgba(40,30,20,0.6)'; c.lineWidth = 1.2;
+    for (let y = 85; y < 290; y += 16) {
+        c.beginPath(); c.moveTo(30, y);
+        for (let x = 30; x < 250 - random() * 50; x += 6) c.lineTo(x, y + Math.sin(x * 0.7 + y) * 1.5);
+        c.stroke();
+    }
+    c.fillStyle = '#8e1d18'; c.beginPath(); c.arc(215, 310, 22, 0, Math.PI * 2); c.fill();
+    noiseFill(c, 280, 360, 10, 102);
+    return canvas;
+}
+
+function wheelhouseMaterials(renderer, mats, floor) {
+    const tex = (canvas, ru, rv, colour = true) => {
+        const t = new THREE.CanvasTexture(canvas);
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.repeat.set(ru, rv);
+        t.anisotropy = 8;
+        if (colour) t.colorSpace = THREE.SRGBColorSpace;
+        return t;
+    };
+    const standard = (options) => new THREE.MeshStandardMaterial({ transparent: true, opacity: 0, side: THREE.DoubleSide, ...options });
+    const env = interiorEnvironment(renderer);
+    const panel = drawPanelling();
+    const map = tex(panel.colour, 1 / 1.2, 1 / 2.4), normal = tex(panel.normal, 1 / 1.2, 1 / 2.4, false);
+    // Line the joinery up with this floor: v = 0 at the floor.
+    map.offset.y = normal.offset.y = -floor / 2.4;
+    const twill = tex(drawTwill(), 40, 40, false);
+    const added = {
+        panelling: standard({ map, normalMap: normal, normalScale: new THREE.Vector2(0.9, 0.9), roughness: 0.36, metalness: 0, envMap: env, envMapIntensity: 0.55 }),
+        deckhead: standard({ color: '#ddd5c2', roughness: 0.65, metalness: 0, envMap: env, envMapIntensity: 0.3 }),
+        certificate: standard({ map: tex(drawCertificate(), 1, 1), roughness: 0.85, metalness: 0 }),
+        lips: standard({ color: '#9a5a4c', roughness: 0.5, metalness: 0 })
+    };
+    // Give the existing fittings relief and reflections.
+    const set = (m, props) => { if (m) { Object.assign(m, props); m.needsUpdate = true; } };
+    // Brass in daily use: a little dulled and darkened, not polished show brass.
+    set(mats.brass, { color: new THREE.Color('#a8833f'), roughness: 0.38, metalness: 0.8, envMap: env, envMapIntensity: 0.85 });
+    set(mats.bronze, { envMap: env, envMapIntensity: 0.6 });
+    set(mats.glass, { envMap: env, envMapIntensity: 1.4, roughness: 0.02 });
+    set(mats.darkTimber, { roughness: 0.3, envMap: env, envMapIntensity: 0.6 });
+    set(mats.timber, { envMap: env, envMapIntensity: 0.5 });
+    set(mats.iron, { envMap: env, envMapIntensity: 0.5 });
+    for (const k of ['red', 'green', 'telegraph', 'compass', 'clock', 'leather', 'shirt', 'eye']) set(mats[k], { envMap: env, envMapIntensity: 0.5 });
+    set(mats.wool, { normalMap: twill, normalScale: new THREE.Vector2(0.6, 0.6), roughness: 0.95, envMap: env, envMapIntensity: 0.3 });
+    set(mats.skin, { map: tex(drawSkin(), 6, 6), color: new THREE.Color('#ffffff'), roughness: 0.55, envMap: env, envMapIntensity: 0.35 });
+    set(mats.beard, { roughness: 0.9, envMap: env, envMapIntensity: 0.25 });
+    set(mats.eye, { roughness: 0.08, metalness: 0.1 });
+    set(mats.lampGlass, { color: new THREE.Color('#fff4d8'), emissive: new THREE.Color('#ffb85c'), emissiveIntensity: 1.6, roughness: 0.05 });
+    set(mats.deck, { envMap: env, envMapIntensity: 0.3 });
+    return added;
 }
 
 // Faces for the telegraph, compass card, clock and a chart.
