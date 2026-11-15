@@ -23,6 +23,10 @@ On `dev`, `/view/` uses a BelowJS build of the `claude/upbeat-volta-1lk76n` bran
 
 Before merging `dev` into `main`, ideally publish a BelowJS release with this feature and host that in `site/vendor/belowjs/<version>/` in place of the branch build (see `site/vendor/README.md`).
 
+## Then and now page (test site)
+
+`/then-now/?model=euro` is a cut-down, browser-only page: the wreck fills the screen with a slider down it, the reconstruction to the left and the scan to the right, rendered from one camera so the halves line up. Drag the handle (or use the arrow keys on it) to compare; drag anywhere else to spin the wreck, which turns slowly on its own until touched. It only offers wrecks with a reconstruction in `site/assets/wrecks/`, and uses `addWreckExtras(viewer, { ui: false, dimWreck: false, inside: false })`. The scanned sand shows on both sides.
+
 ## Self-hosted libraries (test site)
 
 On `dev` nothing loads from a CDN: three.js, BelowJS, the KTX2 transcoder and Draco decoder, the Quest controller models and the animate tool's MP4 writer are all served from `site/vendor/`, with versioned folders cached for a year. Every page passes `assetBasePath: '/vendor/below-assets/'` to BelowJS. `site/vendor/README.md` lists versions, sources and licences, and how to update them.

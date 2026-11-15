@@ -35,13 +35,17 @@ const ASCENT_WARN = 9;            // metres per minute
 const THUMBSTICK_BUTTON = 3;      // xr-standard gamepad: thumbstick press
 
 
-export function addWreckExtras(viewer) {
+// options: ui (the Explore panel; default true), dimWreck (darken the scan
+// as the reconstruction fades in; default true), inside (hide the scan when
+// the camera is in the wheelhouse; default true).
+export function addWreckExtras(viewer, options = {}) {
+    const opts = { ui: true, dimWreck: true, inside: true, ...options };
     const below = viewer.belowViewer;
     const renderer = below.renderer;
     const scene = below.sceneManager.scene;
     const cache = new Map();
 
-    const ui = makeDesktopUi(viewer.container || document.body);
+    const ui = makeDesktopUi(opts.ui ? (viewer.container || document.body) : null);
     const card = makeCard(viewer.container || document.body);
     const gauge = makeGauge();
     const vrCard = makeVrCard();
@@ -148,18 +152,39 @@ export function addWreckExtras(viewer) {
 
         // Remember the wreck's own colours so "then" can darken them.
         const materials = new Set();
-        // The scanned sand round the wreck stays as it is, to match the seabed.
+        // The scanned sand round the wreck stays as it is, to match the
+        // seabed. Material names don't always survive loading, so sand is
+        // also any part of the scan that is flat (under 2 m high).
+        const sandMeshes = new Set();
+        const v = new THREE.Vector3();
+        model.updateMatrixWorld(true);
         model.traverse((o) => {
             if (!o.isMesh || isInside(o, root)) return;
-            for (const m of [].concat(o.material)) {
-                if (m?.color && !/sand/i.test(m.name || '')) materials.add(m);
+            const named = [].concat(o.material).some((m) => /sand/i.test(m?.name || ''));
+            // Height of each point above the fitted seabed; sand if nine in
+            // ten points are within 1.5 m of it (stray points don't count).
+            const pos = o.geometry?.attributes?.position;
+            let flat = false;
+            if (pos) {
+                const step = Math.max(1, Math.floor(pos.count / 2000)), heights = [];
+                for (let i = 0; i < pos.count; i += step) {
+                    v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+                    heights.push(v.y - (seabed.a * v.x + seabed.b * v.z + seabed.c));
+                }
+                heights.sort((p, q) => p - q);
+                flat = heights[Math.floor(heights.length * 0.9)] < 1.5;
             }
+            if (named || flat) sandMeshes.add(o);
+        });
+        model.traverse((o) => {
+            if (!o.isMesh || isInside(o, root) || sandMeshes.has(o)) return;
+            for (const m of [].concat(o.material)) if (m?.color) materials.add(m);
         });
         for (const m of materials) m.userData.extrasBase ??= m.color.clone();
         const wreckMeshes = [];
         model.traverse((o) => { if (o.isMesh && !isInside(o, root)) wreckMeshes.push(o); });
 
-        return { model, root, markers, ghost, materials, wreckMeshes, seabed, data, dwell: null, dwellTime: 0, openPoi: null, openAt: new THREE.Vector3(), inside: false, savedView: null };
+        return { model, root, markers, ghost, materials, wreckMeshes, sandMeshes, seabed, data, dwell: null, dwellTime: 0, openPoi: null, openAt: new THREE.Vector3(), inside: false, savedView: null };
     }
 
     // ── Desktop ─────────────────────────────────────────────────────────
@@ -301,7 +326,7 @@ export function addWreckExtras(viewer) {
         const xr = renderer.xr.isPresenting;
         const camera = below.cameraManager.camera;
         headPose(eye, forward);
-        updateInside();
+        if (opts.inside) updateInside();
 
         // Then and now.
         if (xr) pollThumbsticks();
@@ -310,7 +335,7 @@ export function addWreckExtras(viewer) {
             blend = blendTarget > blend ? Math.min(blendTarget, blend + step) : Math.max(blendTarget, blend - step);
             ui.setBlend(blend);
         }
-        applyBlend(state, blend);
+        applyBlend(state, opts.dimWreck ? blend : 0, blend);
 
         // Desktop camera fly-to.
         if (tween && !xr) {
@@ -513,9 +538,9 @@ function isInside(object, ancestor) {
     return false;
 }
 
-// Fade the wreck down and the ghost up.
-function applyBlend(state, blend) {
-    setWreckDim(state, blend);
+// Fade the wreck down (dim) and the ghost up (blend).
+function applyBlend(state, dim, blend = dim) {
+    setWreckDim(state, dim);
     if (!state.ghost) return;
     state.ghost.group.visible = blend > 0.005;
     state.ghost.setOpacity(blend);
@@ -2354,7 +2379,7 @@ function makeDesktopUi(parent) {
             </div>
             <p class="wx-panel__depth" title=""></p>
         </div>`;
-    parent.appendChild(panel);
+    if (parent) parent.appendChild(panel);
     const toggle = panel.querySelector('.wx-panel__toggle');
     const list = panel.querySelector('.wx-panel__pois');
     const then = panel.querySelector('.wx-panel__then');
