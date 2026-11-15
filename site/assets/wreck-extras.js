@@ -34,7 +34,6 @@ const WRECK_DIM = 0.75;           // how far the wreck darkens at full "then"
 const ASCENT_WARN = 9;            // metres per minute
 const THUMBSTICK_BUTTON = 3;      // xr-standard gamepad: thumbstick press
 
-const GHOST_COLOUR = new THREE.Color('#9fe8ff');
 
 export function addWreckExtras(viewer) {
     const below = viewer.belowViewer;
@@ -570,83 +569,96 @@ function makeGhost(g) {
         return [x, y, side * breadth(x) * section(eta) * runFactor(x, y)];
     };
 
-    const positions = [];
-    const index = [];
-    const grid = (rows, point) => {
-        const start = positions.length / 3;
-        for (let i = 0; i <= STATIONS; i++) for (let j = 0; j < rows; j++) positions.push(...point(xAt(i), j));
-        for (let i = 0; i < STATIONS; i++) {
-            for (let j = 0; j < rows - 1; j++) {
-                const p = start + i * rows + j;
-                index.push(p, p + rows, p + 1, p + 1, p + rows, p + rows + 1);
-            }
-        }
-    };
-    // Shell: port deck edge, round the keel, starboard deck edge.
-    const cols = ROWS * 2 + 1;
-    grid(cols, (x, j) => {
-        const side = j < ROWS ? -1 : 1;
-        return hullPoint(x, side, j < ROWS ? 1 - j / ROWS : (j - ROWS) / ROWS);
-    });
-    // Bulwarks, each side.
-    for (const side of [-1, 1]) grid(2, (x, j) => [x, deck(x) + j * bulwark, side * breadth(x)]);
-    // Deck.
-    grid(2, (x, j) => [x, deck(x), (j ? 1 : -1) * breadth(x)]);
-
-    const shell = new THREE.BufferGeometry();
-    shell.setAttribute('position', new THREE.Float32BufferAttribute(warp(positions), 3));
-    shell.setIndex(index);
-    shell.computeVertexNormals();
-
-    const surfaceMaterial = makeGhostMaterial();
-    const meshes = [new THREE.Mesh(shell, surfaceMaterial)];
-
-    // Blueprint lines.
-    const lines = [];
-    const polyline = (pts, closed = false) => {
-        for (let k = 0; k < pts.length - 1; k++) lines.push(...pts[k], ...pts[k + 1]);
-        if (closed) lines.push(...pts[pts.length - 1], ...pts[0]);
-    };
-    const along = (fn) => { const pts = []; for (let i = 0; i <= STATIONS; i++) pts.push(fn(xAt(i))); return pts; };
-    for (let x = Math.ceil(g.stern / 2) * 2; x <= g.bow; x += 2) {
-        const pts = [];
-        for (let j = 0; j < cols; j++) {
-            const side = j < ROWS ? -1 : 1;
-            pts.push(hullPoint(x, side, j < ROWS ? 1 - j / ROWS : (j - ROWS) / ROWS));
-        }
-        polyline(pts);
-    }
-    for (const side of [-1, 1]) {
-        polyline(along((x) => [x, deck(x), side * breadth(x)]));                      // deck edge and rubbing strake
-        polyline(along((x) => [x, deck(x) + bulwark, side * breadth(x)]));            // rail
-    }
-    polyline(along((x) => [x, bottom(x), 0]));                                          // keel, stem and counter
-
-    // Fittings: boxes and cylinders share the ghost surface; their edges
-    // are drawn as lines.
-    const add = (geo, edges = true) => {
-        if (edges) {
-            const e = new THREE.EdgesGeometry(geo, 25).attributes.position.array;
-            for (let k = 0; k < e.length; k++) lines.push(e[k]);
-        }
+    // ── Surfaces ──────────────────────────────────────────────────────
+    // Painted, planked and varnished materials with textures drawn in the
+    // browser. UVs are in metres in the ship's frame, set before the twist
+    // is applied, so paint lines (the waterline, plating seams) stay level
+    // with the ship.
+    const mats = shipMaterials(h.waterline ?? 2.9);
+    const meshes = [];
+    const addMesh = (geo, material, uv = 'box') => {
+        if (uv === 'box') boxUV(geo);
         warp(geo.attributes.position.array);
         geo.computeVertexNormals();
-        meshes.push(new THREE.Mesh(geo, surfaceMaterial));
+        const mesh = new THREE.Mesh(geo, material);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.raycast = () => {};
+        meshes.push(mesh);
+        return mesh;
     };
-    const box = (x0, x1, y0, height, width) => {
+    const gridGeo = (rows, point, uvOf) => {
+        const pos = [], uv = [], idx = [];
+        for (let i = 0; i <= STATIONS; i++) {
+            for (let j = 0; j < rows; j++) {
+                const p = point(xAt(i), j);
+                pos.push(...p);
+                uv.push(...uvOf(p));
+            }
+        }
+        for (let i = 0; i < STATIONS; i++) {
+            for (let j = 0; j < rows - 1; j++) {
+                const q = i * rows + j;
+                idx.push(q, q + rows, q + 1, q + 1, q + rows, q + rows + 1);
+            }
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+        geo.setIndex(idx);
+        return geo;
+    };
+    const sideUV = (p) => [p[0], p[1]];
+
+    // Shell: port deck edge, round the keel, starboard deck edge; then the
+    // bulwarks and the deck.
+    const cols = ROWS * 2 + 1;
+    addMesh(gridGeo(cols, (x, j) => {
+        const side = j < ROWS ? -1 : 1;
+        return hullPoint(x, side, j < ROWS ? 1 - j / ROWS : (j - ROWS) / ROWS);
+    }, sideUV), mats.hull, 'given');
+    for (const side of [-1, 1]) {
+        addMesh(gridGeo(2, (x, j) => [x, deck(x) + j * bulwark, side * breadth(x)], sideUV), mats.hull, 'given');
+    }
+    addMesh(gridGeo(2, (x, j) => [x, deck(x), (j ? 1 : -1) * breadth(x)], (p) => [p[0], p[2]]), mats.deck, 'given');
+
+    // Round bars between two points, and tubes along a run of points.
+    const up = new THREE.Vector3(0, 1, 0);
+    const bar = (a, b, radius, material, sides = 8) => {
+        const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b);
+        const dir = B.clone().sub(A);
+        const geo = new THREE.CylinderGeometry(radius, radius, dir.length(), sides, 1, false);
+        geo.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, dir.clone().normalize()));
+        geo.translate((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2);
+        return addMesh(geo, material);
+    };
+    const tube = (pts, radius, material, segments = 64) => {
+        const curve = new THREE.CatmullRomCurve3(pts.map((q) => new THREE.Vector3(...q)));
+        return addMesh(new THREE.TubeGeometry(curve, segments, radius, 8, false), material);
+    };
+    const along = (fn) => { const pts = []; for (let i = 0; i <= STATIONS; i += 2) pts.push(fn(xAt(i))); return pts; };
+
+    // Rubbing strake at deck level and a timber cap rail on the bulwarks.
+    for (const side of [-1, 1]) {
+        tube(along((x) => [x, deck(x) - 0.12, side * (breadth(x) + 0.07)]), 0.11, mats.blackSteel, 160);
+        tube(along((x) => [x, deck(x) + bulwark + 0.03, side * breadth(x)]), 0.06, mats.timber, 160);
+    }
+
+    // Her name on both bows.
+    const nameAt = g.bow - 3.2;
+    for (const side of [-1, 1]) {
+        const slope = (breadth(nameAt + 0.1) - breadth(nameAt - 0.1)) / 0.2;
+        const plane = new THREE.PlaneGeometry(2.6, 0.65);
+        // Face out from the hull side as it narrows towards the stem.
+        plane.rotateY(side > 0 ? -Math.atan(slope) : Math.PI + Math.atan(slope));
+        plane.translate(nameAt, deck(nameAt) - 0.55, side * (breadth(nameAt) + 0.03));
+        addMesh(plane, mats.name, 'given');
+    }
+
+    const box = (x0, x1, y0, height, width, material) => {
         const geo = new THREE.BoxGeometry(x1 - x0, height, width);
         geo.translate((x0 + x1) / 2, y0 + height / 2, 0);
-        add(geo);
-    };
-    const ring = (x, y, z, r, axis = 'y', n = 24) => {
-        const pts = [];
-        for (let k = 0; k < n; k++) {
-            const a = (k / n) * Math.PI * 2;
-            pts.push(axis === 'y' ? [x + r * Math.cos(a), y, z + r * Math.sin(a)]
-                : axis === 'z' ? [x + r * Math.cos(a), y + r * Math.sin(a), z]
-                : [x, y + r * Math.cos(a), z + r * Math.sin(a)]);
-        }
-        polyline(pts, true);
+        return addMesh(geo, material);
     };
 
     // Engine and boiler casing, with the wheelhouse on its forward end.
@@ -654,85 +666,111 @@ function makeGhost(g) {
     if (g.casing) {
         const c = g.casing;
         const base = deck((c.from + c.to) / 2);
-        box(c.from, c.to, base, c.height, c.width);
+        box(c.from, c.to, base - 0.3, c.height + 0.3, c.width, mats.paint);
         casingTop = base + c.height;
-        // Portholes along both sides.
+        // Brass portholes along both sides.
         for (let x = c.from + 1.2; x < c.to - 0.6; x += c.portholeSpacing ?? 1.8) {
-            for (const side of [-1, 1]) ring(x, base + c.height * 0.6, side * c.width / 2, 0.2, 'z', 12);
+            for (const side of [-1, 1]) {
+                const y = base + c.height * 0.6, z = side * (c.width / 2 + 0.02);
+                const rim = new THREE.TorusGeometry(0.19, 0.035, 8, 20);
+                rim.translate(x, y, z);
+                addMesh(rim, mats.brass);
+                const glass = new THREE.CircleGeometry(0.17, 20);
+                if (side < 0) glass.rotateY(Math.PI);
+                glass.translate(x, y, z);
+                addMesh(glass, mats.glass);
+            }
         }
-        // Engine room skylight.
-        if (c.skylight) box(c.skylight.from, c.skylight.to, casingTop, 0.6, c.skylight.width ?? 1.8);
-        // Ship's boat on the after end of the casing, keel up the centreline.
+        // Engine room skylight: timber frame, glazed top.
+        if (c.skylight) {
+            const k = c.skylight;
+            box(k.from, k.to, casingTop, 0.55, k.width ?? 1.8, mats.timber);
+            box(k.from + 0.08, k.to - 0.08, casingTop + 0.55, 0.04, (k.width ?? 1.8) - 0.16, mats.glass);
+        }
+        // Ship's boat on the after end of the casing, in chocks.
         if (c.boat) {
             const b = c.boat;
-            const geo = new THREE.SphereGeometry(1, 24, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+            const geo = new THREE.SphereGeometry(1, 28, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
             geo.scale(b.length / 2, 0.75, (b.beam ?? 1.6) / 2);
             geo.translate(b.at, casingTop + 1.0, 0);
-            add(geo, false);
-            ring(b.at, casingTop + 1.0, 0, 1, 'y', 32);
-            const gunwale = lines.length - 32 * 6;
-            for (let k = gunwale; k < lines.length; k += 3) {
-                lines[k] = b.at + (lines[k] - b.at) * b.length / 2;
-                lines[k + 2] = lines[k + 2] * (b.beam ?? 1.6) / 2;
-            }
+            addMesh(geo, mats.boat);
+            const rim = new THREE.TorusGeometry(1, 0.05, 6, 40);
+            rim.rotateX(Math.PI / 2);
+            rim.scale(b.length / 2, 1, (b.beam ?? 1.6) / 2);
+            rim.translate(b.at, casingTop + 1.0, 0);
+            addMesh(rim, mats.timber);
+            for (const dx of [-b.length * 0.3, b.length * 0.3]) box(b.at + dx - 0.15, b.at + dx + 0.15, casingTop, 0.45, (b.beam ?? 1.6) * 0.8, mats.timber);
         }
     }
     let roof = casingTop;
     if (g.wheelhouse) {
-        const w = g.wheelhouse;
-        box(w.from, w.to, casingTop, w.height, w.width);
+        const w = g.wheelhouse, hw = w.width / 2;
+        box(w.from, w.to, casingTop, w.height, w.width, mats.timber);
         roof = casingTop + w.height;
-        // Window band and flying bridge rail.
-        const y0 = casingTop + w.height * 0.5, y1 = casingTop + w.height * 0.85, hw = w.width / 2;
-        for (const y of [y0, y1]) polyline([[w.from, y, -hw], [w.to, y, -hw], [w.to, y, hw], [w.from, y, hw]]);
-        for (let z = -hw + 0.55; z < hw - 0.2; z += 0.55) polyline([[w.to, y0, z], [w.to, y1, z]]);
-        const r = roof + 0.95;
-        polyline([[w.from, r, -hw], [w.to, r, -hw], [w.to, r, hw], [w.from, r, hw]], true);
-        for (const [x, z] of [[w.from, -hw], [w.to, -hw], [w.to, hw], [w.from, hw]]) polyline([[x, roof, z], [x, r, z]]);
+        box(w.from - 0.12, w.to + 0.12, roof, 0.1, w.width + 0.24, mats.paint);
+        // Windows: a row across the front and down each side.
+        const winY = casingTop + w.height * 0.68, winH = w.height * 0.36;
+        const pane = (x, z, rotY, width) => {
+            const geo = new THREE.PlaneGeometry(width, winH);
+            geo.rotateY(rotY);
+            geo.translate(x, winY, z);
+            addMesh(geo, mats.glass, 'given');
+        };
+        const across = Math.max(3, Math.floor(w.width / 0.6));
+        for (let k = 0; k < across; k++) pane(w.to + 0.015, -hw + (k + 0.5) * (w.width / across), Math.PI / 2, w.width / across - 0.1);
+        const aft = Math.max(2, Math.floor((w.to - w.from) / 0.7));
+        for (const side of [-1, 1]) {
+            for (let k = 0; k < aft; k++) pane(w.from + (k + 0.5) * ((w.to - w.from) / aft), side * (hw + 0.015), side > 0 ? 0 : Math.PI, (w.to - w.from) / aft - 0.12);
+        }
+        // Open bridge rail on the roof.
+        const r = roof + 0.1 + 0.95, corners = [[w.from, r, -hw], [w.to, r, -hw], [w.to, r, hw], [w.from, r, hw]];
+        for (let k = 0; k < 4; k++) bar(corners[k], corners[(k + 1) % 4], 0.025, mats.paint, 6);
+        for (const [x, , z] of corners) bar([x, roof + 0.1, z], [x, r, z], 0.025, mats.paint, 6);
     }
 
-    // Funnel over the boiler, raked aft, with a band near the top.
+    // Funnel over the boiler, raked aft, black topped.
     let funnelTop = roof;
     if (g.funnel) {
         const f = g.funnel;
         const rake = THREE.MathUtils.degToRad(f.rake ?? 6);
         const base = casingTop - 0.2;
         const length = deckSide + f.height - base;
-        const geo = new THREE.CylinderGeometry(f.radius, f.radius, length, 28, 1, true);
+        const geo = new THREE.CylinderGeometry(f.radius, f.radius, length, 32, 1, true);
         geo.translate(0, length / 2, 0);
         geo.rotateZ(rake);
         geo.translate(f.at, base, 0);
-        add(geo, false);
-        const top = (t) => [f.at - Math.sin(rake) * length * t, base + Math.cos(rake) * length * t];
-        for (const t of [0.04, 0.82, 0.9, 1]) { const [x, y] = top(t); ring(x, y, 0, f.radius); }
-        funnelTop = top(1)[1];
-        // Cowl ventilators either side, as on most steam tugs.
+        addMesh(geo, mats.funnel, 'given');
+        funnelTop = base + Math.cos(rake) * length;
+        const lip = new THREE.TorusGeometry(f.radius, 0.05, 6, 32);
+        lip.rotateX(Math.PI / 2);
+        lip.rotateZ(rake);
+        lip.translate(f.at - Math.sin(rake) * length, funnelTop, 0);
+        addMesh(lip, mats.blackSteel);
+        // Cowl ventilators either side, abaft the funnel, mouths forward.
         for (const side of [-1, 1]) {
-            const vx = f.at + (f.radius + 0.7), vz = side * (f.radius + 0.35);
-            const pipe = new THREE.CylinderGeometry(0.2, 0.2, 2.0, 12, 1, true);
+            const vx = f.at - (f.radius + 0.6), vz = side * (f.radius + 0.25);
+            const pipe = new THREE.CylinderGeometry(0.2, 0.2, 2.0, 16, 1, true);
             pipe.translate(vx, casingTop + 1.0, vz);
-            add(pipe, false);
-            const cowl = new THREE.CylinderGeometry(0.42, 0.24, 0.6, 14, 1, true);
+            addMesh(pipe, mats.paint);
+            const cowl = new THREE.CylinderGeometry(0.42, 0.24, 0.6, 18, 1, true);
             cowl.rotateZ(Math.PI / 2);
             cowl.translate(vx + 0.2, casingTop + 2.15, vz);
-            add(cowl, false);
-            ring(vx + 0.5, casingTop + 2.15, vz, 0.42, 'x');
+            addMesh(cowl, mats.paint);
         }
     }
 
-    // Masts with stays. Schooner rig: a foremast and a mainmast.
+    // Masts with standing rigging. Schooner rig: a foremast and a mainmast.
     const masts = g.masts || [];
     masts.forEach((m, k) => {
         const base = deck(m.at);
-        const geo = new THREE.CylinderGeometry(0.09, 0.16, m.height, 10, 1, true);
+        const geo = new THREE.CylinderGeometry(0.09, 0.16, m.height, 14, 1, true);
         geo.translate(m.at, base + m.height / 2, 0);
-        add(geo, false);
+        addMesh(geo, mats.mast);
         const head = [m.at, base + m.height, 0];
-        polyline([head, [m.at, base, 0]]);
-        polyline([[m.at, base + m.height * 0.72, -1.0], [m.at, base + m.height * 0.72, 1.0]]);   // crosstrees
-        for (const side of [-1, 1]) polyline([head, [m.at - 1.2, deck(m.at - 1.2) + bulwark, side * breadth(m.at - 1.2)]]);
-        if (k === 0) polyline([head, [g.bow, deck(g.bow) + bulwark, 0]]);                  // forestay to the stem head
-        if (k === masts.length - 1 && masts.length > 1) polyline([head, [masts[0].at, deck(masts[0].at) + masts[0].height * 0.85, 0]]);
+        bar([m.at, base + m.height * 0.72, -1.0], [m.at, base + m.height * 0.72, 1.0], 0.05, mats.mast);   // crosstrees
+        for (const side of [-1, 1]) bar(head, [m.at - 1.2, deck(m.at - 1.2) + bulwark, side * breadth(m.at - 1.2)], 0.014, mats.wire, 4);
+        if (k === 0) bar(head, [g.bow, deck(g.bow) + bulwark, 0], 0.014, mats.wire, 4);
+        if (k === masts.length - 1 && masts.length > 1) bar(head, [masts[0].at, deck(masts[0].at) + masts[0].height * 0.85, 0], 0.014, mats.wire, 4);
     });
 
     // Towing arches over the after deck, and towing bitts.
@@ -741,118 +779,330 @@ function makeGhost(g) {
         const pts = [];
         for (let k = 0; k <= 16; k++) {
             const a = Math.PI * (k / 16);
-            pts.push(new THREE.Vector3(x, deck(x) + bulwark + (top - deck(x) - bulwark) * Math.sin(a), -hw * Math.cos(a)));
+            pts.push([x, deck(x) + bulwark + (top - deck(x) - bulwark) * Math.sin(a), -hw * Math.cos(a)]);
         }
-        add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.06, 6, false), false);
-        polyline(pts.map((v) => v.toArray()));
+        tube(pts, 0.07, mats.blackSteel, 32);
     }
     for (const b of g.bitts || []) {
         for (const side of [-1, 1]) {
-            const geo = new THREE.CylinderGeometry(0.17, 0.17, 0.9, 12);
+            const geo = new THREE.CylinderGeometry(0.17, 0.17, 0.9, 16);
             geo.translate(b, deck(b) + 0.45, side * 0.45);
-            add(geo);
+            addMesh(geo, mats.blackSteel);
+            const cap = new THREE.CylinderGeometry(0.24, 0.24, 0.06, 16);
+            cap.translate(b, deck(b) + 0.93, side * 0.45);
+            addMesh(cap, mats.blackSteel);
         }
     }
 
     // Rudder on the sternpost, propeller in the aperture, sole piece below.
     if (h.rudder !== false) {
         const rudderLength = h.rudderLength ?? 1.2;
-        const geo = new THREE.BoxGeometry(rudderLength, counterBottom - 0.35, 0.14);
-        geo.translate(sternpost - rudderLength / 2, 0.25 + (counterBottom - 0.35) / 2, 0);
-        add(geo);
-        polyline([[sternpost, 0, 0], [sternpost, counterBottom, 0]]);                  // sternpost
-        polyline([[propPost, 0, 0], [propPost, counterBottom, 0]]);                    // propeller post
-        polyline([[sternpost - 0.3, 0, 0], [propPost, 0, 0]]);                         // sole piece
-        const sole = new THREE.BoxGeometry(propPost - sternpost + 0.3, 0.2, 0.2);
-        sole.translate((propPost + sternpost - 0.3) / 2, 0.1, 0);
-        add(sole, false);
-        // Propeller: hub and four blades, filling most of the aperture height.
+        box(sternpost - rudderLength, sternpost, 0.25, counterBottom - 0.35, 0.14, mats.hull);
+        box(sternpost - rudderLength - 0.3, propPost, 0, 0.2, 0.2, mats.hull);
         const px = (propPost + sternpost) / 2;
         const py = counterBottom / 2 + 0.1;
         const radius = Math.min(1.25, counterBottom / 2 - 0.2);
-        const hub = new THREE.CylinderGeometry(0.22, 0.22, 0.5, 14);
+        const hub = new THREE.CylinderGeometry(0.22, 0.22, 0.5, 16);
         hub.rotateZ(Math.PI / 2);
         hub.translate(px, py, 0);
-        add(hub, false);
+        addMesh(hub, mats.bronze);
         for (let k = 0; k < 4; k++) {
-            const a = Math.PI / 4 + (k * Math.PI) / 2;
-            const blade = new THREE.CircleGeometry(1, 16);
-            blade.scale(radius * 0.42, 0.28, 1);
+            const blade = new THREE.CircleGeometry(1, 20);
+            blade.scale(radius * 0.42, 0.3, 1);
             blade.translate(radius * 0.55, 0, 0);
-            blade.rotateZ(a);
+            blade.rotateX(0.35);                       // pitch
+            blade.rotateZ(Math.PI / 4 + (k * Math.PI) / 2);
             blade.rotateY(Math.PI / 2);
             blade.translate(px, py, 0);
-            add(blade, false);
-            polyline([[px, py, 0], [px, py + Math.sin(a) * radius, Math.cos(a) * radius]]);
+            addMesh(blade, mats.bronze);
         }
-        ring(px, py, 0, radius, 'x', 32);
     }
-
-    const lineGeometry = new THREE.BufferGeometry();
-    lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(warp(lines), 3));
-    const lineMaterial = new THREE.LineBasicMaterial({ color: GHOST_COLOUR, transparent: true, depthWrite: false, fog: false });
-    const outline = new THREE.LineSegments(lineGeometry, lineMaterial);
-    for (const m of meshes) m.raycast = () => {};
-    outline.raycast = () => {};
 
     const label = makeTextSprite(g.label || 'As built, indicative');
     label.position.fromArray(warp([g.funnel ? g.funnel.at : 0, Math.max(funnelTop, roof) + 1.4, 0]));
-    label.scale.multiplyScalar(1.0);
 
     const ship = new THREE.Group();
-    ship.add(...meshes, outline, label);
+    ship.add(...meshes, label);
 
     // Ship frame to model coordinates.
     const forward = new THREE.Vector3().fromArray(g.forward).normalize();
-    const up = new THREE.Vector3().fromArray(g.up).normalize();
+    const shipUp = new THREE.Vector3().fromArray(g.up).normalize();
     const starboard = new THREE.Vector3().fromArray(g.starboard).normalize();
     ship.matrixAutoUpdate = false;
-    ship.matrix.makeBasis(forward, up, starboard).setPosition(new THREE.Vector3().fromArray(g.keel));
+    ship.matrix.makeBasis(forward, shipUp, starboard).setPosition(new THREE.Vector3().fromArray(g.keel));
     group.add(ship);
     group.visible = false;
 
+    const materials = Object.values(mats);
     return {
         group,
         setOpacity(o) {
-            surfaceMaterial.uniforms.uOpacity.value = o;
-            lineMaterial.opacity = 0.7 * o;
+            // Blend while fading; fully opaque (and correctly depth sorted)
+            // once it is all the way in.
+            const opaque = o >= 0.999;
+            for (const m of materials) {
+                if (m.transparent === opaque) { m.transparent = !opaque; m.needsUpdate = true; }
+                m.opacity = o;
+            }
             label.material.opacity = o;
         }
     };
 }
 
-function makeGhostMaterial() {
-    return new THREE.ShaderMaterial({
-        uniforms: {
-            uOpacity: { value: 0 },
-            uColour: { value: GHOST_COLOUR.clone() }
-        },
-        vertexShader: /* glsl */ `
-            varying vec3 vNormal;
-            varying vec3 vView;
-            void main() {
-                vec4 mv = modelViewMatrix * vec4(position, 1.0);
-                vNormal = normalize(normalMatrix * normal);
-                vView = -mv.xyz;
-                gl_Position = projectionMatrix * mv;
+// UVs in metres from each vertex's position, projected along its main
+// normal direction: sides get (along, up), tops get (along, across).
+function boxUV(geo) {
+    if (!geo.attributes.normal) geo.computeVertexNormals();
+    const p = geo.attributes.position, n = geo.attributes.normal;
+    const uv = new Float32Array(p.count * 2);
+    for (let i = 0; i < p.count; i++) {
+        const ax = Math.abs(n.getX(i)), ay = Math.abs(n.getY(i)), az = Math.abs(n.getZ(i));
+        if (ax >= ay && ax >= az) { uv[i * 2] = p.getZ(i); uv[i * 2 + 1] = p.getY(i); }
+        else if (ay >= az) { uv[i * 2] = p.getX(i); uv[i * 2 + 1] = p.getZ(i); }
+        else { uv[i * 2] = p.getX(i); uv[i * 2 + 1] = p.getY(i); }
+    }
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+}
+
+// ── Materials for the reconstruction ────────────────────────────────────
+//
+// Paint schemes follow steam tugs of the period: black topsides, red
+// antifouling below the waterline, a white deckhouse, a varnished timber
+// wheelhouse, a scrubbed timber deck and a black-topped buff funnel. The
+// Euro's actual colours are not recorded in our sources.
+
+let shipMaterialCache = null;
+function shipMaterials(waterline) {
+    if (shipMaterialCache?.waterline === waterline) return shipMaterialCache.mats;
+    const texture = (canvas, repeatU, repeatV, colour = true) => {
+        const t = new THREE.CanvasTexture(canvas);
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.repeat.set(repeatU, repeatV);
+        t.anisotropy = 8;
+        if (colour) t.colorSpace = THREE.SRGBColorSpace;
+        return t;
+    };
+    const standard = (options) => new THREE.MeshStandardMaterial({ transparent: true, opacity: 0, side: THREE.DoubleSide, ...options });
+
+    const hull = drawHull(waterline);
+    const deck = drawDeck();
+    const paint = drawPaint();
+    const timber = drawTimber();
+    const mats = {
+        hull: standard({ map: texture(hull.colour, 1 / 16, 1 / 8), bumpMap: texture(hull.bump, 1 / 16, 1 / 8, false), bumpScale: 1.5, roughnessMap: texture(hull.rough, 1 / 16, 1 / 8, false), roughness: 1, metalness: 0.2 }),
+        deck: standard({ map: texture(deck.colour, 1 / 8, 1 / 4), bumpMap: texture(deck.bump, 1 / 8, 1 / 4, false), bumpScale: 1.2, roughness: 0.85, metalness: 0 }),
+        paint: standard({ map: texture(paint, 1 / 4, 1 / 4), roughness: 0.55, metalness: 0.05 }),
+        timber: standard({ map: texture(timber, 1 / 2, 1 / 2), roughness: 0.45, metalness: 0 }),
+        mast: standard({ map: texture(timber, 1 / 2, 1 / 2), color: '#d9b98c', roughness: 0.5, metalness: 0 }),
+        funnel: standard({ map: texture(drawFunnel(), 1, 1), roughness: 0.6, metalness: 0.1 }),
+        blackSteel: standard({ color: '#1c1c1c', roughness: 0.55, metalness: 0.3 }),
+        wire: standard({ color: '#2b2b2b', roughness: 0.6, metalness: 0.4 }),
+        brass: standard({ color: '#c09444', roughness: 0.35, metalness: 0.55 }),
+        bronze: standard({ color: '#a8733f', roughness: 0.4, metalness: 0.55 }),
+        glass: standard({ color: '#1a2a33', roughness: 0.08, metalness: 0.4 }),
+        boat: standard({ color: '#eeebe2', roughness: 0.5, metalness: 0 }),
+        name: standard({ map: drawName('EURO'), alphaTest: 0.3, roughness: 0.6, metalness: 0 })
+    };
+    shipMaterialCache = { waterline, mats };
+    return mats;
+}
+
+const PX = 128; // texture pixels per metre
+
+function seededRandom(seed) {
+    return () => {
+        seed = (seed * 16807) % 2147483647;
+        return (seed - 1) / 2147483646;
+    };
+}
+
+function noiseFill(ctx, w, h, amount, seed) {
+    const random = seededRandom(seed);
+    const image = ctx.getImageData(0, 0, w, h);
+    const d = image.data;
+    for (let i = 0; i < d.length; i += 4) {
+        const n = (random() - 0.5) * amount;
+        d[i] += n; d[i + 1] += n; d[i + 2] += n;
+    }
+    ctx.putImageData(image, 0, 0);
+}
+
+function blotches(ctx, w, h, count, colours, seed, size = [20, 120]) {
+    const random = seededRandom(seed);
+    for (let i = 0; i < count; i++) {
+        const x = random() * w, y = random() * h, r = size[0] + random() * (size[1] - size[0]);
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, colours[Math.floor(random() * colours.length)]);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+}
+
+// Hull plating 16 m long by 8 m high (v = height above the keel): black
+// above the waterline, red antifouling below, riveted lapped strakes.
+function drawHull(waterline) {
+    const W = 16 * PX, H = 8 * PX;
+    const make = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+    const colour = make(), bump = make(), rough = make();
+    const c = colour.getContext('2d'), b = bump.getContext('2d'), r = rough.getContext('2d');
+    const yPx = (y) => H - y * PX; // canvas rows run downwards; texture v runs up
+    const wl = yPx(waterline);
+
+    c.fillStyle = '#18191b'; c.fillRect(0, 0, W, wl);
+    c.fillStyle = '#6b2419'; c.fillRect(0, wl, W, H - wl);
+    blotches(c, W, wl, 160, ['rgba(70,70,72,0.10)', 'rgba(0,0,0,0.18)'], 3);
+    c.save(); c.translate(0, wl);
+    blotches(c, W, H - wl, 120, ['rgba(120,50,35,0.18)', 'rgba(40,14,10,0.2)'], 4);
+    c.restore();
+    // A little light scum and staining along the waterline.
+    const scum = c.createLinearGradient(0, wl - 10, 0, wl + 14);
+    scum.addColorStop(0, 'rgba(0,0,0,0)'); scum.addColorStop(0.5, 'rgba(150,140,120,0.18)'); scum.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = scum; c.fillRect(0, wl - 10, W, 24);
+
+    b.fillStyle = '#808080'; b.fillRect(0, 0, W, H);
+    r.fillStyle = '#7a7a7a'; r.fillRect(0, 0, W, wl);
+    r.fillStyle = '#b4b4b4'; r.fillRect(0, wl, W, H - wl);
+
+    const strake = 0.85, butt = 5.4, pitch = 0.075;
+    const random = seededRandom(9);
+    for (let k = 0, y = strake; y < 8; k++, y += strake) {
+        const py = yPx(y);
+        // Lap: the upper plate's edge casts a fine line and stands proud.
+        c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(0, py, W, 2);
+        c.fillStyle = 'rgba(255,255,255,0.05)'; c.fillRect(0, py - 2, W, 1);
+        b.fillStyle = '#9a9a9a'; b.fillRect(0, py - 10, W, 10);
+        b.fillStyle = '#5a5a5a'; b.fillRect(0, py, W, 2);
+        for (let x = 0; x < W; x += pitch * PX) {
+            for (const dy of [-6, -16]) {
+                b.fillStyle = '#c8c8c8'; b.beginPath(); b.arc(x + (dy === -16 ? pitch * PX / 2 : 0), py + dy, 2.2, 0, Math.PI * 2); b.fill();
             }
-        `,
-        fragmentShader: /* glsl */ `
-            uniform float uOpacity;
-            uniform vec3 uColour;
-            varying vec3 vNormal;
-            varying vec3 vView;
-            void main() {
-                float facing = abs(dot(normalize(vNormal), normalize(vView)));
-                float rim = pow(1.0 - facing, 2.0);
-                gl_FragColor = vec4(uColour, uOpacity * (0.12 + 0.7 * rim));
-                #include <colorspace_fragment>
+        }
+        // Butts, staggered strake to strake.
+        const offset = (k % 2) * butt / 2;
+        for (let x = offset; x < 16; x += butt) {
+            const px = x * PX, top = yPx(y + strake);
+            c.fillStyle = 'rgba(0,0,0,0.3)'; c.fillRect(px, top, 2, py - top);
+            b.fillStyle = '#606060'; b.fillRect(px, top, 2, py - top);
+            for (let yy = top + 6; yy < py - 6; yy += pitch * PX) {
+                b.fillStyle = '#c8c8c8';
+                for (const dx of [-7, 9]) { b.beginPath(); b.arc(px + dx, yy, 2.2, 0, Math.PI * 2); b.fill(); }
             }
-        `,
-        transparent: true,
-        depthWrite: false,
-        side: THREE.DoubleSide
-    });
+        }
+        if (random() < 0.3) { r.fillStyle = 'rgba(255,255,255,0.05)'; r.fillRect(0, yPx(y + strake), W, strake * PX); }
+    }
+    noiseFill(c, W, H, 10, 11);
+    noiseFill(b, W, H, 14, 12);
+    return { colour, bump, rough };
+}
+
+// Deck planking 8 m along by 4 m across, planks running fore and aft.
+function drawDeck() {
+    const W = 8 * PX, H = 4 * PX;
+    const colour = document.createElement('canvas'), bump = document.createElement('canvas');
+    colour.width = bump.width = W; colour.height = bump.height = H;
+    const c = colour.getContext('2d'), b = bump.getContext('2d');
+    const random = seededRandom(21);
+    const plank = 0.14 * PX;
+    b.fillStyle = '#909090'; b.fillRect(0, 0, W, H);
+    for (let y = 0, k = 0; y < H; y += plank, k++) {
+        let x = -random() * 5 * PX;
+        while (x < W) {
+            const len = (4 + random() * 3) * PX;
+            const tone = 150 + random() * 40;
+            c.fillStyle = `rgb(${tone + 12},${tone - 6},${tone - 38})`;
+            c.fillRect(x, y, len, plank);
+            // Grain.
+            for (let g = 0; g < 14; g++) {
+                c.strokeStyle = `rgba(${90 + random() * 40},${60 + random() * 30},${30},${0.12 + random() * 0.12})`;
+                c.lineWidth = 1;
+                c.beginPath();
+                const gy = y + random() * plank;
+                c.moveTo(x, gy);
+                for (let gx = x; gx < x + len; gx += 40) c.lineTo(gx, gy + Math.sin(gx * 0.01 + g) * 1.5);
+                c.stroke();
+            }
+            // Butt joint and caulking.
+            c.fillStyle = '#2a2118'; c.fillRect(x, y, 3, plank);
+            b.fillStyle = '#404040'; b.fillRect(x, y, 3, plank);
+            x += len;
+        }
+        c.fillStyle = '#231b14'; c.fillRect(0, y, W, 3);
+        b.fillStyle = '#404040'; b.fillRect(0, y, W, 3);
+    }
+    blotches(c, W, H, 60, ['rgba(255,250,235,0.08)', 'rgba(60,45,30,0.10)'], 22);
+    noiseFill(c, W, H, 12, 23);
+    noiseFill(b, W, H, 10, 24);
+    return { colour, bump };
+}
+
+// White painted steel, 4 m square.
+function drawPaint() {
+    const W = 4 * PX;
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = W;
+    const c = canvas.getContext('2d');
+    c.fillStyle = '#e6e2d6'; c.fillRect(0, 0, W, W);
+    blotches(c, W, W, 40, ['rgba(120,110,90,0.06)', 'rgba(255,255,255,0.08)'], 31);
+    for (let x = 0; x < W; x += 1.3 * PX) { c.fillStyle = 'rgba(0,0,0,0.07)'; c.fillRect(x, 0, 2, W); }
+    noiseFill(c, W, W, 6, 32);
+    return canvas;
+}
+
+// Varnished tongue and groove boards, 2 m square, boards running up.
+function drawTimber() {
+    const W = 2 * PX;
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = W * 2;
+    const c = canvas.getContext('2d');
+    const S = canvas.width, board = 0.1 * PX * 2;
+    const random = seededRandom(41);
+    for (let x = 0; x < S; x += board) {
+        const tone = 0.85 + random() * 0.3;
+        c.fillStyle = `rgb(${Math.round(128 * tone)},${Math.round(76 * tone)},${Math.round(38 * tone)})`;
+        c.fillRect(x, 0, board, S);
+        for (let g = 0; g < 10; g++) {
+            c.strokeStyle = `rgba(60,30,12,${0.15 + random() * 0.15})`;
+            c.lineWidth = 1 + random();
+            c.beginPath();
+            const gx = x + random() * board;
+            c.moveTo(gx, 0);
+            for (let y = 0; y < S; y += 30) c.lineTo(gx + Math.sin(y * 0.02 + g * 1.7) * 2, y);
+            c.stroke();
+        }
+        c.fillStyle = 'rgba(30,15,5,0.6)'; c.fillRect(x, 0, 2, S);
+    }
+    // Varnish sheen.
+    const sheen = c.createLinearGradient(0, 0, 0, S);
+    sheen.addColorStop(0, 'rgba(255,220,170,0.08)'); sheen.addColorStop(1, 'rgba(0,0,0,0.05)');
+    c.fillStyle = sheen; c.fillRect(0, 0, S, S);
+    noiseFill(c, S, S, 8, 42);
+    return canvas;
+}
+
+// Funnel: buff, black top, a little soot.
+function drawFunnel() {
+    const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 1024;
+    const c = canvas.getContext('2d');
+    c.fillStyle = '#c4a165'; c.fillRect(0, 0, 256, 1024);
+    c.fillStyle = '#141414'; c.fillRect(0, 0, 256, 170);
+    const soot = c.createLinearGradient(0, 170, 0, 330);
+    soot.addColorStop(0, 'rgba(20,20,20,0.35)'); soot.addColorStop(1, 'rgba(20,20,20,0)');
+    c.fillStyle = soot; c.fillRect(0, 170, 256, 160);
+    for (let y = 300; y < 1024; y += 150) { c.fillStyle = 'rgba(0,0,0,0.12)'; c.fillRect(0, y, 256, 3); }
+    noiseFill(c, 256, 1024, 8, 51);
+    return canvas;
+}
+
+function drawName(text) {
+    const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 128;
+    const c = canvas.getContext('2d');
+    c.fillStyle = '#f2efe6';
+    c.font = 'bold 112px Georgia, "Times New Roman", serif';
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(text, 256, 68);
+    const t = new THREE.CanvasTexture(canvas);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
+    return t;
 }
 
 function makeTextSprite(text) {
