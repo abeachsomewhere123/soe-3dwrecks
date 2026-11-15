@@ -46,13 +46,32 @@
       "to": 15.7,
       "width": 4.2,
       "height": 2.1,
-      "portholeSpacing": 1.8,
+      "portholeSpacing": 0,
       "boat": {
         "at": 1.75,
         "length": 4.5,
         "beam": 1.5,
         "z": 0.95,
         "davits": true
+      },
+      "openings": [
+        {
+          "at": 1.5,
+          "type": "window"
+        },
+        {
+          "at": 6.85,
+          "type": "window"
+        },
+        {
+          "at": 11.6,
+          "type": "door"
+        }
+      ],
+      "skylight": {
+        "from": 7.3,
+        "to": 8.8,
+        "width": 1.6
       }
     },
     "wheelhouse": {
@@ -65,18 +84,48 @@
       "at": 5.3,
       "radius": 0.95,
       "height": 11.0,
-      "rake": 3
+      "rake": 3,
+      "guys": [
+        -1.7,
+        1.7
+      ],
+      "guyBand": 0.78,
+      "whistleAt": 0.84
     },
     "masts": [
       {
         "at": 12.9,
         "height": 15.5,
-        "rake": 5
+        "rake": 5,
+        "rigging": {
+          "hounds": 0.68,
+          "shrouds": [
+            0.9,
+            1.5,
+            2.1
+          ],
+          "ratlines": true,
+          "backstays": [
+            5.0
+          ],
+          "forestays": [
+            "stem",
+            "hounds"
+          ],
+          "light": 0.55
+        }
       },
       {
         "at": -0.4,
         "height": 15.5,
-        "rake": 5
+        "rake": 5,
+        "rigging": {
+          "hounds": 0.7,
+          "shrouds": [
+            1.0,
+            1.7
+          ]
+        }
       }
     ],
     "towingArches": [
@@ -167,6 +216,11 @@
         16.6,
         18.4
       ]
-    }
+    },
+    "rigging": {
+      "triatic": true,
+      "mainToFunnel": 0.45
+    },
+    "sidelights": true
   }
 }
