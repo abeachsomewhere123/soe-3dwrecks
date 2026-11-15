@@ -94,6 +94,7 @@
         import { addVrStarts } from '/assets/xr-start.js';
         import { addUnderwater } from '/assets/underwater.js';
         import { addWreckExtras } from '/assets/wreck-extras.js';
+        import { addVrExit } from '/assets/vr-exit.js';
 
         const statusEl = document.getElementById('status');
 
@@ -188,6 +189,8 @@
             // with a file in /assets/wrecks/. Added after the water so the
             // model is already level when it measures the sand.
             addWreckExtras(viewer);
+            // Exit VR button on the right wrist.
+            addVrExit(viewer);
             addBackLink();
             showXrPrompt(viewer, params.get('mode'));
 
