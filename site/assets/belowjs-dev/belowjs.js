@@ -11109,6 +11109,8 @@ const mh = {
   // backdrop and fog fade time
   sandBand: 0.5,
   // local sand further than this from the fitted plane is ignored (m)
+  eyeHeight: null,
+  // eyes this far above the sand when landed (m); null = your own height
   backdropRadius: 500
   // base size; scaled each frame to sit inside the far plane
 };
@@ -11121,7 +11123,7 @@ class bh {
    * @param {Object} [options]
    */
   constructor(e, t, s, i, r = {}) {
-    this.renderer = e, this.scene = t, this.camera = s, this.getModels = i, this.options = { ...mh, ...r }, this.active = !1, this.landed = !1, this.blend = 0, this.seabed = null, this.seabedOverride = Number.isFinite(r.seabedHeight) ? r.seabedHeight : null, this._lift = 0, this._lastY = 0, this._savedFog = null, this._modelKey = null, this.onChange = null, this.backdrop = this._makeBackdrop(), this.scene.add(this.backdrop);
+    this.renderer = e, this.scene = t, this.camera = s, this.getModels = i, this.options = { ...mh, ...r }, this.active = !1, this.landed = !1, this.blend = 0, this.seabed = null, this.seabedOverride = Number.isFinite(r.seabedHeight) ? r.seabedHeight : null, this._lift = 0, this._lastY = 0, this._standOff = 0, this._savedFog = null, this._modelKey = null, this.onChange = null, this.backdrop = this._makeBackdrop(), this.scene.add(this.backdrop);
   }
   setCamera(e) {
     this.camera = e;
@@ -11155,8 +11157,11 @@ class bh {
     if (s !== null)
       if (this.landed) {
         const n = t.position.y - this._lastY;
-        n > 0 ? this._lift += n : n < 0 && (this._lift = 0), this._lift > this.options.liftHeight ? (this.landed = !1, this._lift = 0, this.onChange?.(!1)) : (t.position.y = s, this._lastY = s);
-      } else t.position.y - s <= this.options.landHeight && (this.landed = !0, this._lift = 0, t.position.y = s, this._lastY = s, this.onChange?.(!0));
+        n > 0 ? this._lift += n : n < 0 && (this._lift = 0), this._lift > this.options.liftHeight ? (this.landed = !1, this._lift = 0, this.onChange?.(!1)) : (t.position.y = s + this._standOff, this._lastY = t.position.y);
+      } else {
+        const n = this._standOffNow();
+        t.position.y - s <= n + this.options.landHeight && (this.landed = !0, this._lift = 0, this._standOff = n, t.position.y = s + n, this._lastY = t.position.y, this.onChange?.(!0));
+      }
     const i = this.landed ? 1 : 0, r = (e || 0) / Math.max(this.options.fadeSeconds, 0.01);
     this.blend = i > this.blend ? Math.min(i, this.blend + r) : Math.max(i, this.blend - r);
   }
@@ -11198,6 +11203,19 @@ class bh {
     }), s = new f.Mesh(e, t);
     return s.name = "BelowJS VR water backdrop", s.renderOrder = -1e3, s.frustumCulled = !1, s.raycast = () => {
     }, s.visible = !1, s;
+  }
+  /**
+   * How far above the sand the rig stands when landed. With no eyeHeight it
+   * is 0: your real floor is the sand and you see from your own height. With
+   * eyeHeight, the rig is raised (or lowered) so your eyes are that far above
+   * the sand. It is measured from your head height as you land and then held,
+   * so crouching or standing up still moves you as it would.
+   */
+  _standOffNow() {
+    const e = this.options.eyeHeight;
+    if (!Number.isFinite(e)) return 0;
+    const t = f.MathUtils.clamp(this.camera?.position?.y || 0, 0, 2.5);
+    return e - t;
   }
   _sandHeightAt(e, t) {
     if (this.seabedOverride !== null) return this.seabedOverride;
@@ -11686,6 +11704,7 @@ class Eh extends wt {
           passthroughOnSeabed: { type: "boolean", default: !1 },
           passthroughLandHeight: { type: "number", default: 0.15 },
           passthroughLiftHeight: { type: "number", default: 0.4 },
+          passthroughEyeHeight: { type: "number", default: null },
           seabedHeight: { type: "number", default: null }
         }
       },
@@ -11775,6 +11794,7 @@ class Eh extends wt {
       {
         landHeight: this.config.vr.passthroughLandHeight,
         liftHeight: this.config.vr.passthroughLiftHeight,
+        eyeHeight: this.config.vr.passthroughEyeHeight,
         seabedHeight: this.config.vr.seabedHeight
       }
     ), this.vrPassthrough.onChange = (s) => {

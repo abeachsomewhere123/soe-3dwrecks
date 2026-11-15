@@ -13,12 +13,12 @@
     {
         "imports": {
             "three": "https://cdn.jsdelivr.net/npm/three@0.179.1/+esm",
-            "belowjs": "/assets/belowjs-dev/belowjs.js?v=779b764"
+            "belowjs": "/assets/belowjs-dev/belowjs.js?v=b3d7bf8"
         }
     }
     </script>
-    <!-- Test site: BelowJS built from abeachsomewhere123/belowjs 779b764 (seabed passthrough). Live uses belowjs@1.8.0 from the CDN. -->
-    <link rel="stylesheet" href="/assets/belowjs-dev/belowjs.css?v=779b764">
+    <!-- Test site: BelowJS built from abeachsomewhere123/belowjs b3d7bf8 (seabed passthrough). Live uses belowjs@1.8.0 from the CDN. -->
+    <link rel="stylesheet" href="/assets/belowjs-dev/belowjs.css?v=b3d7bf8">
     <link rel="stylesheet" href="/assets/viewer.css">
     <link rel="stylesheet" href="/assets/wreck-extras.css">
 
@@ -155,7 +155,9 @@
                     scene: { background: '#001122' },
                     // On passthrough headsets, standing on the sand in VR shows
                     // the room with the wreck around you at full scale.
-                    vr: { passthroughOnSeabed: true }
+                    // Eyes 2 m above the sand when standing on it, whatever
+                    // your height, so you look across the wreck, not along the sand.
+                    vr: { passthroughOnSeabed: true, passthroughEyeHeight: 2 }
                 }
             });
 
