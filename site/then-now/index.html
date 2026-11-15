@@ -371,11 +371,16 @@
                 // The reconstruction fully in, the wreck at its own colours.
                 // The THEN tag says it is a reconstruction, so no floating label.
                 extras.setBlend(1);
-                extras.state?.ghost?.group.traverse((o) => { if (o.isSprite) o.visible = false; });
-                setTimeout(() => {
-                    const g = extras.state?.data?.ghost;
-                    note.textContent = g?.note || '';
-                }, 500);
+                // The reconstruction is built once its data file arrives,
+                // a moment after the model; finish setting up then.
+                const ready = setInterval(() => {
+                    const ghost = extras.state?.ghost;
+                    if (!ghost) return;
+                    clearInterval(ready);
+                    ghost.group.traverse((o) => { if (o.isSprite) o.visible = false; });
+                    note.textContent = extras.state.data.ghost?.note || '';
+                }, 100);
+                setTimeout(() => clearInterval(ready), 30000);
                 startSpin();
             });
 
