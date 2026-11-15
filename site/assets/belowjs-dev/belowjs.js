@@ -11123,7 +11123,7 @@ class bh {
    * @param {Object} [options]
    */
   constructor(e, t, s, i, r = {}) {
-    this.renderer = e, this.scene = t, this.camera = s, this.getModels = i, this.options = { ...mh, ...r }, this.active = !1, this.landed = !1, this.blend = 0, this.seabed = null, this.seabedOverride = Number.isFinite(r.seabedHeight) ? r.seabedHeight : null, this._lift = 0, this._lastY = 0, this._standOff = 0, this._savedFog = null, this._modelKey = null, this.onChange = null, this.backdrop = this._makeBackdrop(), this.scene.add(this.backdrop);
+    this.renderer = e, this.scene = t, this.camera = s, this.getModels = i, this.options = { ...mh, ...r }, this.active = !1, this.landed = !1, this.blend = 0, this.seabed = null, this.seabedOverride = Number.isFinite(r.seabedHeight) ? r.seabedHeight : null, this._hover = 0, this._lastY = 0, this._standOff = 0, this._savedFog = null, this._modelKey = null, this.onChange = null, this.backdrop = this._makeBackdrop(), this.scene.add(this.backdrop);
   }
   setCamera(e) {
     this.camera = e;
@@ -11142,7 +11142,7 @@ class bh {
   /** Called when an XR session starts. Only alpha-blend sessions can show the room. */
   sessionStarted(e) {
     const t = e?.environmentBlendMode;
-    this.active = !!e && e.belowjsPassthrough === !0 && t !== "opaque", this.landed = !1, this.blend = 0, this._lift = 0, this.refreshSeabed(), this.backdrop.visible = this.active;
+    this.active = !!e && e.belowjsPassthrough === !0 && t !== "opaque", this.landed = !1, this.blend = 0, this._hover = 0, this.refreshSeabed(), this.backdrop.visible = this.active;
   }
   sessionEnded() {
     const e = this.landed;
@@ -11156,11 +11156,11 @@ class bh {
     const s = this._sandHeightAt(t.position.x, t.position.z);
     if (s !== null)
       if (this.landed) {
-        const n = t.position.y - this._lastY;
-        n > 0 ? this._lift += n : n < 0 && (this._lift = 0), this._lift > this.options.liftHeight ? (this.landed = !1, this._lift = 0, this.onChange?.(!1)) : (t.position.y = s + this._standOff, this._lastY = t.position.y);
+        let n = t.position.y - this._lastY;
+        Math.abs(n) < 3e-3 && (n = 0), this._hover = Math.max(0, this._hover + n), this._hover > this.options.liftHeight ? (this.landed = !1, this._hover = 0, this.onChange?.(!1)) : (t.position.y = s + this._standOff + this._hover, this._lastY = t.position.y);
       } else {
         const n = this._standOffNow();
-        t.position.y - s <= n + this.options.landHeight && (this.landed = !0, this._lift = 0, this._standOff = n, t.position.y = s + n, this._lastY = t.position.y, this.onChange?.(!0));
+        t.position.y - s <= n + this.options.landHeight && (this.landed = !0, this._hover = 0, this._standOff = n, t.position.y = s + n, this._lastY = t.position.y, this.onChange?.(!0));
       }
     const i = this.landed ? 1 : 0, r = (e || 0) / Math.max(this.options.fadeSeconds, 0.01);
     this.blend = i > this.blend ? Math.min(i, this.blend + r) : Math.max(i, this.blend - r);
