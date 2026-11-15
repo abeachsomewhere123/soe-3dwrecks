@@ -1051,6 +1051,30 @@ function makeGhost(g, renderer) {
         addMesh(new THREE.BoxGeometry(1.0, 0.08, 0.42).translate(x, deck(x) + 0.04, z), mats.blackSteel);
     };
     for (const b of g.bitts || []) bollards(b, 0);
+
+    // Fenders: a rope pudding round the stem, and rope fenders hung over
+    // the bow on short lanyards.
+    if (g.fenders?.bow) {
+        // A horseshoe of thick rope over the stem, about a metre and a half
+        // along each bow, standing just off the plating.
+        const pts = [];
+        const r = 0.2;
+        for (let k = -10; k <= 10; k++) {
+            const u = k / 10, a = Math.abs(u);
+            const x = g.bow + r - 1.7 * a ** 1.6;
+            const z = Math.sign(u) * (breadth(Math.min(x, g.bow)) + r * 0.9) * Math.min(1, a * 4);
+            pts.push([x, deck(Math.min(x, g.bow)) - 0.35 - 0.1 * a, z]);
+        }
+        tube(pts, r, mats.rope, 64);
+    }
+    for (const x of g.fenders?.hanging || []) {
+        for (const side of [-1, 1]) {
+            const z = side * (breadth(x) + 0.16), top = deck(x) + bulwark;
+            const fender = new THREE.CapsuleGeometry(0.13, 0.42, 6, 14).translate(x, deck(x) - 0.45, z);
+            addMesh(fender, mats.rope);
+            bar([x, top, side * breadth(x)], [x, deck(x) - 0.15, z], 0.015, mats.rope, 4);
+        }
+    }
     for (const q of g.quarterBitts || []) for (const side of [-1, 1]) bollards(q, side * (breadth(q) - 0.7));
 
     // Steering quadrant on the rudder head, on deck at the stern, worked by
@@ -1190,6 +1214,7 @@ function shipMaterials(waterline, colours = {}) {
         bronze: standard({ color: '#a8733f', roughness: 0.4, metalness: 0.55 }),
         glass: standard({ color: '#a9c8d2', roughness: 0.04, metalness: 0.1, depthWrite: false }),
         boat: standard({ color: '#eeebe2', roughness: 0.5, metalness: 0 }),
+        rope: standard({ map: texture(drawRope(), 14, 1), roughness: 0.95, metalness: 0 }),
         name: standard({ map: drawName('EURO'), alphaTest: 0.3, roughness: 0.6, metalness: 0 }),
         darkTimber: standard({ map: texture(timber, 1 / 2, 1 / 2), color: '#7a5a44', roughness: 0.4, metalness: 0 }),
         iron: standard({ color: '#2c3a30', roughness: 0.5, metalness: 0.35 }),
@@ -1950,6 +1975,22 @@ function dialTexture(kind) {
     t.colorSpace = THREE.SRGBColorSpace;
     t.anisotropy = 8;
     return t;
+}
+
+// Worn manila rope: diagonal lay of strands.
+function drawRope() {
+    const S = 256, canvas = document.createElement('canvas');
+    canvas.width = canvas.height = S;
+    const c = canvas.getContext('2d');
+    c.fillStyle = '#7b6646'; c.fillRect(0, 0, S, S);
+    for (let k = -S; k < S * 2; k += 16) {
+        c.strokeStyle = 'rgba(40,30,18,0.55)'; c.lineWidth = 3;
+        c.beginPath(); c.moveTo(k, 0); c.lineTo(k + S * 0.6, S); c.stroke();
+        c.strokeStyle = 'rgba(200,180,140,0.18)'; c.lineWidth = 4;
+        c.beginPath(); c.moveTo(k + 6, 0); c.lineTo(k + 6 + S * 0.6, S); c.stroke();
+    }
+    noiseFill(c, S, S, 18, 111);
+    return canvas;
 }
 
 function drawName(text) {
