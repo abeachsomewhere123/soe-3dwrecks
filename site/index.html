@@ -149,6 +149,10 @@
 
         .btn small { font-weight: 400; opacity: 0.8; }
 
+        /* Then and now: across the card, for wrecks with a reconstruction. */
+        .btn.compare { grid-column: 1 / -1; }
+        .btn.compare svg { width: 16px; height: 16px; flex: none; }
+
         .status { padding: 40px 0; color: var(--muted); }
 
         footer {
@@ -216,7 +220,18 @@
             return node;
         }
 
-        function card(key, model, vrOk, arOk) {
+        // Wrecks with a reconstruction (a data file with a ghost) get a link
+        // to the then and now slider.
+        async function hasReconstruction(key) {
+            try {
+                const res = await fetch(`/assets/wrecks/${encodeURIComponent(key)}.json`);
+                return res.ok && Boolean((await res.json()).ghost);
+            } catch {
+                return false;
+            }
+        }
+
+        function card(key, model, vrOk, arOk, compareOk) {
             const viewHref = `/view/?model=${encodeURIComponent(key)}`;
 
             const img = el('img', { src: thumbnailUrl(model.url), alt: model.name, loading: 'lazy' });
@@ -245,10 +260,21 @@
                     el('div', { className: 'actions' }, [
                         el('a', { className: 'btn primary', href: viewHref, textContent: 'View in browser' }),
                         vr,
-                        ar
+                        ar,
+                        compareOk ? compareLink(key) : ''
                     ])
                 ])
             ]);
+        }
+
+        function compareLink(key) {
+            const link = el('a', { className: 'btn compare', href: `/then-now/?model=${encodeURIComponent(key)}` });
+            // A split square: then on one side, now on the other.
+            link.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">'
+                + '<rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M8 1v14"/><path d="M1.5 9.5l3-3 3.5 3.5" opacity="0.7"/></svg>';
+            link.append('Then and now');
+            link.title = 'Compare the wreck today with a reconstruction of the ship';
+            return link;
         }
 
         async function start() {
@@ -270,8 +296,12 @@
                 return;
             }
 
-            const [vrOk, arOk] = await Promise.all([xrSupport('immersive-vr'), xrSupport('immersive-ar')]);
-            grid.append(...keys.map((key) => card(key, models[key], vrOk, arOk)));
+            const [vrOk, arOk, compare] = await Promise.all([
+                xrSupport('immersive-vr'),
+                xrSupport('immersive-ar'),
+                Promise.all(keys.map(hasReconstruction))
+            ]);
+            grid.append(...keys.map((key, i) => card(key, models[key], vrOk, arOk, compare[i])));
             statusEl.remove();
         }
 
