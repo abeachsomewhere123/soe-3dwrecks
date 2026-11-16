@@ -31,6 +31,8 @@ Cloudflare tells browsers to keep files under `/assets/` for 4 hours. Pages load
 
 `/then-now/?model=euro` is a cut-down, browser-only page: the wreck fills the screen with a slider down it, the reconstruction to the left and the scan to the right, rendered from one camera so the halves line up. Drag the handle (or use the arrow keys on it) to compare; drag anywhere else to spin the wreck, which turns slowly on its own until touched. It only offers wrecks with a reconstruction in `site/assets/wrecks/`, and uses `addWreckExtras(viewer, { ui: false, dimWreck: false, inside: false })`. The scanned sand shows on both sides.
 
+On a VR headset the page shows an Enter VR button (top right). A split can't work in stereo, so in VR it behaves like the main viewer: you start beside the wreck as it is now, a hint says to click a thumbstick, and each click fades the reconstruction in (dimming the scan) or back out. The depth gauge and the wrist Exit VR button work as on `/view/`, and standing on the sand shows the room on passthrough headsets. Leaving VR puts the slider view back as it was.
+
 ## Self-hosted libraries (test site)
 
 On `dev` nothing loads from a CDN: three.js, BelowJS, the KTX2 transcoder and Draco decoder, the Quest controller models and the animate tool's MP4 writer are all served from `site/vendor/`, with versioned folders cached for a year. Every page passes `assetBasePath: '/vendor/below-assets/'` to BelowJS. `site/vendor/README.md` lists versions, sources and licences, and how to update them.

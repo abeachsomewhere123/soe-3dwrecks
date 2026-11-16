@@ -514,6 +514,8 @@ export function addWreckExtras(viewer, options = {}) {
         get state() { return state; },
         get blend() { return blend; },
         stepInside: () => stepInside(),
+        // Change an option (ui, dimWreck, inside) after start-up.
+        setOption: (name, value) => { opts[name] = value; },
         stepOutside: () => stepOutside(),
         insidePose: () => insidePose(),
         gauge: gauge.mesh,
