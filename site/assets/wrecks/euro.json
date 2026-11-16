@@ -6,7 +6,7 @@
   "pois": [],
   "ghost": {
     "label": "Reconstruction, indicative",
-    "note": "Hull sized from the registered dimensions (130 x 22.5 x 12.2 ft) and fitted to the scan: she lies about 36 degrees to port, easing to about 30 degrees at the bow. Deck layout, funnel, masts, boat and towing gear follow a State Library of Western Australia photograph of the Euro (date not recorded here), measured from the photo; detail the photo doesn't show follows tugs of the period. Colours can't be read from a black and white photo: the funnel's dull red with a black top fits its grey tone but is a guess.",
+    "note": "A representation, not a confirmed likeness. The hull is sized from her registered dimensions (130 x 22.5 x 12.2 ft) and fitted to the scan: she lies about 36 degrees to port, easing to about 30 degrees at the bow. The deck layout, funnel, masts, boat and towing gear follow a State Library of Western Australia photograph we believe shows the Euro, though that isn't confirmed; detail the photo doesn't show follows tugs of the period. Colours can't be read from a black and white photo: the funnel's dull red with a black top is a guess.",
     "listToPort": 36.0,
     "keel": [
       -127.2396,
@@ -181,7 +181,7 @@
       "radius": 1.0
     },
     "sliderLabel": "Reconstruction (indicative)",
-    "photoSource": "State Library of Western Australia, photograph of the steam tug Euro",
+    "photoSource": "State Library of Western Australia, photograph believed to show the steam tug Euro (not confirmed)",
     "colours": {
       "deckhouse": "#4a4339",
       "funnel": "#8a4232",
