@@ -789,18 +789,18 @@ function makeGhost(g, renderer) {
 
     // Rubbing strake at deck level and a timber cap rail on the bulwarks.
     for (const side of [-1, 1]) {
-        tube(along((x) => [x, deck(x) - 0.12, side * (breadth(x) + 0.07)]), 0.11, mats.blackSteel, 160);
+        tube(along((x) => [x, deck(x) - 0.12, side * (breadth(x) + 0.07)]), 0.11, mats.rubbing || mats.blackSteel, 160);
         tube(along((x) => [x, deck(x) + bulwark + 0.03, side * breadth(x)]), 0.06, mats.weatheredTimber, 160);
     }
 
     // Her name on both bows.
-    const nameAt = g.bow - 3.2;
+    const nameAt = g.name?.at ?? g.bow - 3.2, nameY = g.name?.height ?? -0.55;
     for (const side of [-1, 1]) {
         const slope = (breadth(nameAt + 0.1) - breadth(nameAt - 0.1)) / 0.2;
         const plane = new THREE.PlaneGeometry(2.6, 0.65);
         // Face out from the hull side as it narrows towards the stem.
         plane.rotateY(side > 0 ? -Math.atan(slope) : Math.PI + Math.atan(slope));
-        plane.translate(nameAt, deck(nameAt) - 0.55, side * (breadth(nameAt) + 0.03));
+        plane.translate(nameAt, deck(nameAt) + nameY, side * (breadth(nameAt) + 0.03));
         addMesh(plane, mats.name, 'given');
     }
 
@@ -885,25 +885,72 @@ function makeGhost(g, renderer) {
             rim.scale(b.length / 2, 1, (b.beam ?? 1.6) / 2);
             rim.translate(b.at, casingTop + 1.0, bz);
             addMesh(rim, mats.weatheredTimber);
+            if (b.cover) {
+                // Canvas cover over the boat, ridged on its strongbacks.
+                const cover = new THREE.SphereGeometry(1, 28, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+                cover.scale(b.length / 2, 0.35, (b.beam ?? 1.6) / 2 + 0.03);
+                addMesh(cover.translate(b.at, casingTop + 1.0, bz), mats.canvas);
+                for (let k = -2; k <= 2; k++) {
+                    const x = b.at + k * b.length * 0.17, half = ((b.beam ?? 1.6) / 2 + 0.05) * Math.sqrt(1 - (k * 0.34) ** 2);
+                    const arc = new THREE.TorusGeometry(1, 0.025, 6, 16, Math.PI).scale(half, 0.36 * Math.sqrt(1 - (k * 0.34) ** 2), 1).rotateY(Math.PI / 2);
+                    addMesh(arc.translate(x, casingTop + 1.0, bz), mats.rope);
+                }
+            }
             for (const dx of [-b.length * 0.3, b.length * 0.3]) {
                 const chock = new THREE.BoxGeometry(0.3, 0.45, (b.beam ?? 1.6) * 0.8).translate(b.at + dx, casingTop + 0.225, bz);
                 addMesh(chock, mats.weatheredTimber);
             }
             // Radial davits at each end, standing on the outboard side.
             if (b.davits) {
-                const out = Math.sign(bz || 1) * ((g.casing?.width ?? 4) / 2 - 0.15);
-                for (const dx of [-b.length / 2 + 0.25, b.length / 2 - 0.25]) {
-                    const x = b.at + dx;
-                    tube([[x, casingTop, out], [x, casingTop + 1.4, out], [x, casingTop + 2.05, out - Math.sign(out) * 0.25], [x, casingTop + 2.0, bz]], 0.05, mats.boat, 16);
-                    bar([x, casingTop + 1.95, bz], [x, casingTop + 1.25, bz], 0.008, mats.wire, 4);
+                const dh = b.davitHeight ?? 2.05;
+                const sides = b.davits === 'both' ? [-1, 1] : [Math.sign(bz || 1)];
+                for (const sd of sides) {
+                    const out = sd * ((g.casing?.width ?? 4) / 2 - 0.15), reach = b.davits === 'both' ? bz + sd * 0.35 : bz;
+                    for (const dx of [-b.length / 2 + 0.25, b.length / 2 - 0.25]) {
+                        const x = b.at + dx;
+                        tube([[x, casingTop, out], [x, casingTop + dh * 0.7, out], [x, casingTop + dh, out - sd * 0.3], [x, casingTop + dh - 0.05, reach]], 0.06, mats.boat, 16);
+                        bar([x, casingTop + dh - 0.1, reach], [x, casingTop + 1.25, reach], 0.008, mats.wire, 4);
+                    }
                 }
             }
         }
     }
-    let roof = casingTop;
+    // Bridge house: a second tier on the casing, its roof the open bridge
+    // around the wheelhouse, with a rail, and ladders down to the deck forward.
+    let bridgeTop = casingTop;
+    if (g.bridgeHouse) {
+        const bh = g.bridgeHouse;
+        box(bh.from, bh.to, casingTop - 0.05, bh.height + 0.05, bh.width, mats.deckhouse || mats.paint);
+        bridgeTop = casingTop + bh.height;
+        box(bh.from - 0.06, bh.to + 0.06, bridgeTop, 0.06, bh.width + 0.12, mats.deck);
+        const hz = bh.width / 2 - 0.05, ry = bridgeTop + 1.0;
+        const corners = [[bh.from, ry, -hz], [bh.to, ry, -hz], [bh.to, ry, hz], [bh.from, ry, hz]];
+        for (let k = 0; k < 4; k++) {
+            bar(corners[k], corners[(k + 1) % 4], 0.025, mats.blackSteel, 6);
+            const [a, , za] = corners[k], [b2, , zb] = corners[(k + 1) % 4];
+            const mid = [(a + b2) / 2, bridgeTop + 0.5, (za + zb) / 2], A = [a, bridgeTop + 0.5, za], B = [b2, bridgeTop + 0.5, zb];
+            bar(A, B, 0.015, mats.blackSteel, 4);
+            bar([mid[0], bridgeTop, mid[2]], [mid[0], ry, mid[2]], 0.02, mats.blackSteel, 6);
+        }
+        for (const [x, , z] of corners) bar([x, bridgeTop, z], [x, ry, z], 0.025, mats.blackSteel, 6);
+        // Canvas dodger along the front rail.
+        addMesh(new THREE.BoxGeometry(0.02, 0.9, bh.width - 0.1).translate(bh.to - 0.02, bridgeTop + 0.55, 0), mats.canvas || mats.boat);
+        if (bh.ladders) {
+            for (const side of [-1, 1]) {
+                const z = side * (bh.width / 2 - 0.35), top = [bh.to - 0.2, bridgeTop, z];
+                const footX = bh.to + (bridgeTop - deck(bh.to)) * 0.55, foot = [footX, deck(footX), z];
+                for (const dz of [-0.25, 0.25]) bar([top[0], top[1] + 0.9, z + dz], [foot[0], foot[1], z + dz], 0.025, mats.blackSteel, 6);
+                for (let k = 1; k < 12; k++) {
+                    const t = k / 12, x = top[0] + (foot[0] - top[0]) * t, y = top[1] + (foot[1] - top[1]) * t;
+                    bar([x, y, z - 0.25], [x, y, z + 0.25], 0.018, mats.blackSteel, 4);
+                }
+            }
+        }
+    }
+    let roof = bridgeTop;
     let inside = null;
     if (g.wheelhouse) {
-        const w = g.wheelhouse, hw = w.width / 2, floor = casingTop, t = 0.06;
+        const w = g.wheelhouse, hw = w.width / 2, floor = bridgeTop, t = 0.06;
         const H = w.height;
         roof = floor + H;
         const sill = floor + 1.05, head = floor + 1.78;
@@ -958,10 +1005,18 @@ function makeGhost(g, renderer) {
         // Floor, roof and ceiling.
         addMesh(new THREE.BoxGeometry(w.to - w.from - 2 * t, 0.05, w.width - 2 * t).translate((w.from + w.to) / 2, floor + 0.025, 0), mats.deck);
         box(w.from - 0.12, w.to + 0.12, roof, 0.1, w.width + 0.24, mats.deckhead);
-        // Open bridge rail on the roof.
-        const r = roof + 0.1 + 0.95, corners = [[w.from, r, -hw], [w.to, r, -hw], [w.to, r, hw], [w.from, r, hw]];
-        for (let k = 0; k < 4; k++) bar(corners[k], corners[(k + 1) % 4], 0.025, mats.boat, 6);
-        for (const [x, , z] of corners) bar([x, roof + 0.1, z], [x, r, z], 0.025, mats.boat, 6);
+        if (w.awning) {
+            // Flat awning over the wheelhouse and the open bridge round it,
+            // on stanchions from the bridge deck.
+            const a = w.awning, aw = (a.width ?? w.width + 1.2) / 2, ay = roof + 0.1;
+            box(a.from, a.to, ay, 0.06, aw * 2, mats.canvas || mats.boat);
+            for (const x of [a.from + 0.1, a.to - 0.1]) for (const z of [-aw + 0.1, aw - 0.1]) bar([x, floor, z], [x, ay, z], 0.03, mats.blackSteel, 6);
+        } else {
+            // Open bridge rail on the roof.
+            const r = roof + 0.1 + 0.95, corners = [[w.from, r, -hw], [w.to, r, -hw], [w.to, r, hw], [w.from, r, hw]];
+            for (let k = 0; k < 4; k++) bar(corners[k], corners[(k + 1) % 4], 0.025, mats.boat, 6);
+            for (const [x, , z] of corners) bar([x, roof + 0.1, z], [x, r, z], 0.025, mats.boat, 6);
+        }
 
         inside = buildBridge({ w, hw, floor, roof, addMesh, bar, mats, fadeHooks, ship: () => shipGroup });
         inside.bounds = { x0: w.from - 0.2, x1: w.to + 0.2, y0: floor - 0.3, y1: roof + 0.3, z: hw + 0.2 };
@@ -1018,13 +1073,15 @@ function makeGhost(g, renderer) {
         // abaft the funnel.
         const vents = g.vents || [-1, 1].map((side) => ({ at: f.at - (f.radius + 0.6), z: side * (f.radius + 0.25), height: 2.0 }));
         for (const v of vents) {
-            const vh = v.height ?? 2.0;
-            const pipe = new THREE.CylinderGeometry(0.2, 0.2, vh, 16, 1, true);
-            pipe.translate(v.at, casingTop + vh / 2, v.z);
+            const vh = v.height ?? 2.0, k = v.size ?? 1;
+            const house = (g.deckhouses || []).find((d) => v.at >= d.from && v.at <= d.to);
+            const vb = v.on === 'deck' ? deck(v.at) : v.on === 'house' && house ? deck((house.from + house.to) / 2) + house.height : casingTop;
+            const pipe = new THREE.CylinderGeometry(0.2 * k, 0.2 * k, vh, 16, 1, true);
+            pipe.translate(v.at, vb + vh / 2, v.z ?? 0);
             addMesh(pipe, mats.paint);
-            const cowl = new THREE.CylinderGeometry(0.42, 0.24, 0.6, 18, 1, true);
+            const cowl = new THREE.CylinderGeometry(0.42 * k, 0.24 * k, 0.6 * k, 18, 1, true);
             cowl.rotateZ(Math.PI / 2);
-            cowl.translate(v.at + 0.2, casingTop + vh + 0.15, v.z);
+            cowl.translate(v.at + 0.2 * k, vb + vh + 0.15 * k, v.z ?? 0);
             addMesh(cowl, mats.paint);
         }
     }
@@ -1081,28 +1138,30 @@ function makeGhost(g, renderer) {
             addMesh(new THREE.CylinderGeometry(0.1, 0.1, 0.04, 12).translate(p[0] + 0.25, p[1] + 0.18, 0), mats.blackSteel);
         }
     });
-    if (masts.length > 1) {
+    if (masts.length) {
         const rig = g.rigging || {};
-        if (rig.triatic !== false) wire(heads[0], heads[masts.length - 1], 0.011);
+        if (masts.length > 1 && rig.triatic !== false) wire(heads[0], heads[masts.length - 1], 0.011);
         if (rig.mainToFunnel && g.funnel) {
             const f = g.funnel, rk = THREE.MathUtils.degToRad(f.rake ?? 0);
             const fBase = casingTop - 0.2, fLen = deckSide + f.height - fBase;
             const t = 0.82;
-            wire(mastPoint(masts.length - 1, rig.mainToFunnel), [f.at - Math.sin(rk) * fLen * t - f.radius, fBase + Math.cos(rk) * fLen * t, 0], 0.011);
+            const k = masts.length - 1, side = masts[k].at > f.at ? 1 : -1;
+            wire(mastPoint(k, rig.mainToFunnel), [f.at - Math.sin(rk) * fLen * t + side * f.radius, fBase + Math.cos(rk) * fLen * t, 0], 0.011);
         }
     }
 
     // Navigation sidelights in their screens either side of the wheelhouse:
     // green to starboard, red to port.
     if (g.sidelights && g.wheelhouse) {
-        const w = g.wheelhouse, x = w.to - 0.35, y = casingTop + w.height * 0.75;
+        const w = g.wheelhouse, bh = g.bridgeHouse;
+        const x = bh ? bh.to - 0.6 : w.to - 0.35, y = bh ? bridgeTop + 1.35 : casingTop + w.height * 0.75;
         for (const side of [-1, 1]) {
-            const z = side * (w.width / 2 + 0.32);
+            const z = side * (bh ? bh.width / 2 - 0.2 : w.width / 2 + 0.32);
             addMesh(new THREE.BoxGeometry(0.9, 0.5, 0.03).translate(x, y, z + side * 0.12), mats.paint);
             addMesh(new THREE.BoxGeometry(0.03, 0.5, 0.3).translate(x + 0.45, y, z), mats.paint);
             addMesh(new THREE.BoxGeometry(0.2, 0.28, 0.2).translate(x + 0.2, y, z), mats.blackSteel);
             addMesh(new THREE.CylinderGeometry(0.06, 0.06, 0.16, 10).rotateX(Math.PI / 2).translate(x + 0.2, y, z + side * 0.1), side > 0 ? mats.lampGreen : mats.lampRed);
-            bar([x - 0.4, y - 0.25, z + side * 0.12], [x - 0.4, casingTop, w.width / 2 * side], 0.02, mats.blackSteel, 6);
+            bar([x - 0.4, y - 0.25, z + side * 0.12], [x - 0.4, bh ? bridgeTop : casingTop, (bh ? z : w.width / 2 * side)], 0.02, mats.blackSteel, 6);
         }
     }
 
@@ -1116,13 +1175,41 @@ function makeGhost(g, renderer) {
 
     // Lifebuoys on the sides of the deckhouse or the after casing.
     for (const lb of g.lifebuoys || []) {
-        const host = lb.on === 'afterCasing' ? g.afterCasing : g.casing;
+        const host = lb.on === 'afterCasing' ? g.afterCasing : lb.on === 'bridgeHouse' ? g.bridgeHouse : g.casing;
         if (!host) continue;
-        const hostBase = deck((host.from + host.to) / 2);
+        const hostBase = lb.on === 'bridgeHouse' ? casingTop : deck((host.from + host.to) / 2);
         for (const side of lb.sides || [1, -1]) {
             const ring = new THREE.TorusGeometry(0.31, 0.07, 10, 28);
             ring.translate(lb.at, hostBase + (lb.height ?? host.height * 0.55), side * (host.width / 2 + 0.08));
             addMesh(ring, mats.boat);
+        }
+    }
+
+    // Small deckhouses on deck (a forecastle house round the foremast),
+    // with brass portholes.
+    for (const d of g.deckhouses || []) {
+        const base = deck((d.from + d.to) / 2);
+        box(d.from, d.to, base - 0.3, d.height + 0.3, d.width, mats.deckhouse || mats.paint);
+        box(d.from - 0.05, d.to + 0.05, base + d.height, 0.06, d.width + 0.1, mats.deck);
+        for (const x of d.portholes || []) {
+            for (const side of [-1, 1]) {
+                const y = base + d.height * 0.6, z = side * (d.width / 2 + 0.02);
+                addMesh(new THREE.TorusGeometry(0.17, 0.035, 8, 20).translate(x, y, z), mats.brass);
+                const glass = new THREE.CircleGeometry(0.15, 20);
+                if (side < 0) glass.rotateY(Math.PI);
+                addMesh(glass.translate(x, y, z), mats.glass);
+            }
+        }
+    }
+    // Anchor windlass on the foredeck: barrel, gypsies and side frames.
+    if (g.windlass) {
+        const x = g.windlass.at, y = deck(x) + 0.55, wz = Math.min(1.6, breadth(x) - 0.6);
+        addMesh(new THREE.CylinderGeometry(0.22, 0.22, wz * 2, 18).rotateX(Math.PI / 2).translate(x, y, 0), mats.blackSteel);
+        for (const side of [-1, 1]) {
+            addMesh(new THREE.CylinderGeometry(0.36, 0.36, 0.22, 18).rotateX(Math.PI / 2).translate(x, y, side * wz * 0.55), mats.iron);
+            addMesh(new THREE.BoxGeometry(0.7, 0.8, 0.1).translate(x, deck(x) + 0.4, side * wz * 0.85), mats.blackSteel);
+            // Cable from the gypsy forward to the hawse pipe.
+            bar([x + 0.3, y - 0.2, side * wz * 0.55], [x + 2.6, deck(x + 2.6) + 0.05, side * Math.min(wz, breadth(x + 2.6) - 0.5)], 0.05, mats.iron, 6);
         }
     }
 
@@ -1193,14 +1280,34 @@ function makeGhost(g, renderer) {
         // A horseshoe of thick rope over the stem, about a metre and a half
         // along each bow, standing just off the plating.
         const pts = [];
-        const r = 0.2;
-        for (let k = -10; k <= 10; k++) {
-            const u = k / 10, a = Math.abs(u);
-            const x = g.bow + r - 1.7 * a ** 1.6;
-            const z = Math.sign(u) * (breadth(Math.min(x, g.bow)) + r * 0.9) * Math.min(1, a * 4);
-            pts.push([x, deck(Math.min(x, g.bow)) - 0.35 - 0.1 * a, z]);
+        const bf = typeof g.fenders.bow === 'object' ? g.fenders.bow : {};
+        const r = bf.radius ?? 0.2, len = bf.length ?? 1.7, drop = bf.drop ?? 0.35;
+        if (!bf.stem) {
+            for (let k = -16; k <= 16; k++) {
+                const u = k / 16, a = Math.abs(u);
+                const x = g.bow + r - len * a ** 1.6;
+                const z = Math.sign(u) * (breadth(Math.min(x, g.bow)) + r * 0.9) * Math.min(1, a * 4);
+                pts.push([x, deck(Math.min(x, g.bow)) - drop - 0.1 * a, z]);
+            }
+            tube(pts, r, mats.rope, 96);
+        } else {
+            // A big woven rope pudding: a lumpy mass hung over the stem, and
+            // a sausage of rope along each bow, drooping a little, as in the
+            // photographs. Built from overlapping knobs so it reads as rope.
+            const random = seededRandom(77);
+            const knob = (x, y, z, rad) => addMesh(new THREE.IcosahedronGeometry(rad, 2)
+                .scale(1 + (random() - 0.5) * 0.25, 1 + (random() - 0.5) * 0.25, 1 + (random() - 0.5) * 0.25)
+                .translate(x, y, z), mats.fender || mats.rope);
+            const top = deck(g.bow) - drop;
+            for (let k = 0; k <= 5; k++) knob(g.bow + bf.stem * 0.35, top - k * bf.stem * 0.32, 0, bf.stem * (1 - k * 0.08));
+            for (const side of [-1, 1]) {
+                for (let k = 1; k <= 22; k++) {
+                    const t = k / 22, x = g.bow - len * t;
+                    const z = side * (breadth(x) + r * 0.75);
+                    knob(x, deck(x) - drop - 0.25 * Math.sin(Math.PI * t) - 0.15 * (1 - t), z, r * (1.25 - 0.35 * t));
+                }
+            }
         }
-        tube(pts, r, mats.rope, 64);
     }
     for (const x of g.fenders?.hanging || []) {
         for (const side of [-1, 1]) {
@@ -1353,6 +1460,10 @@ function shipMaterials(waterline, colours = {}) {
         bronze: standard({ color: '#a8733f', roughness: 0.4, metalness: 0.55 }),
         glass: standard({ color: '#a9c8d2', roughness: 0.04, metalness: 0.1, depthWrite: false }),
         boat: standard({ map: texture(grimyWhite, 1 / 2, 1 / 2), roughness: 0.6, metalness: 0 }),
+        // Awnings and dodgers, and a painted rubbing band where the data gives a colour.
+        canvas: standard({ map: texture(grimyWhite, 1 / 2, 1 / 2), color: colours.canvas || '#d8d0bc', roughness: 0.95, metalness: 0, side: THREE.DoubleSide }),
+        fender: standard({ map: texture(drawRope(), 3, 3), color: '#a4a29c', roughness: 1, metalness: 0 }),
+        rubbing: colours.rubbing ? standard({ map: texture(grimyWhite, 1 / 2, 1 / 2), color: colours.rubbing, roughness: 0.6, metalness: 0.05 }) : null,
         // Varnish gone grey outside: cap rails, skylights, boat gear.
         weatheredTimber: standard({ map: texture(timber, 1 / 2, 1 / 2), color: '#a69a88', roughness: 0.8, metalness: 0 }),
         rope: standard({ map: texture(drawRope(), 14, 1), roughness: 0.95, metalness: 0 }),
@@ -2466,15 +2577,17 @@ function applyExteriorEnvironment(mats, renderer) {
     set(mats.hull, 0.45); set(mats.deckhouse, 0.4); set(mats.paint, 0.4); set(mats.funnel, 0.35);
     set(mats.deck, 0.3); set(mats.blackSteel, 0.5); set(mats.wire, 0.4); set(mats.boat, 0.35);
     set(mats.mast, 0.3); set(mats.rope, 0.15); set(mats.name, 0.3); set(mats.weatheredTimber, 0.2);
+    set(mats.canvas, 0.2); set(mats.rubbing, 0.35); set(mats.fender, 0.1);
 }
 
 function drawName(text) {
     const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 128;
     const c = canvas.getContext('2d');
     c.fillStyle = '#f2efe6';
-    c.font = 'bold 112px Georgia, "Times New Roman", serif';
+    c.font = 'bold 92px "Helvetica Neue", Arial, sans-serif';
     c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillText(text, 256, 68);
+    const step = 112, x0 = 256 - ((text.length - 1) * step) / 2;
+    [...text].forEach((ch, i) => c.fillText(ch, x0 + i * step, 68));
     const t = new THREE.CanvasTexture(canvas);
     t.colorSpace = THREE.SRGBColorSpace;
     t.anisotropy = 8;
