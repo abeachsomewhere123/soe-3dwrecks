@@ -224,7 +224,7 @@
  "titles": [
   {
    "start": 1.0,
-   "end": 7.5,
+   "end": 8.0,
    "y": 360,
    "lines": [
     {
@@ -232,11 +232,16 @@
      "bold": true,
      "size": 150,
      "track": 18,
-     "gap": 22
+     "gap": 18
+    },
+    {
+     "text": "Believed to be the Batman",
+     "size": 44,
+     "gap": 20
     },
     {
      "text": "Armed steam hopper barge  \u00b7  built 1883",
-     "size": 42
+     "size": 40
     },
     {
      "text": "Scuttled 1935  \u00b7  Ships' Graveyard, Bass Strait",
@@ -341,7 +346,7 @@
   "time": 46.5,
   "kicker": "VIRTUAL DIVE",
   "title": "BATMAN",
-  "subtitle": "Armed hopper barge  \u00b7  Ships' Graveyard, Bass Strait"
+  "subtitle": "Believed to be the Batman  \u00b7  Ships' Graveyard"
  },
  "depthGauge": {
   "seabed": 47
