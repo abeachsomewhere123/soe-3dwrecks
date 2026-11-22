@@ -165,7 +165,9 @@ function makeWaterBackground() {
 }
 
 // A seabed plane. mode 1 (outer): hidden inside the scan's outline when a
-// mask is set. mode 2 (inner): shown only inside it.
+// mask is set. mode 2 (inner): never cut. It lies below the outer one, so
+// outside the outline it's hidden, and looking down through the cut at a
+// shallow angle there is always sand beneath, never open water.
 function makeSeabed(map, mode) {
     const geometry = new THREE.PlaneGeometry(SEABED_SIZE, SEABED_SIZE);
     geometry.rotateX(-Math.PI / 2);
@@ -216,7 +218,6 @@ function makeSeabed(map, mode) {
         );
     };
     material.customProgramCacheKey = () => 'underwater-seabed-' + mode;
-    if (mode === 2) uniforms.uMaskOn.value = 1;
 
     const seabed = new THREE.Mesh(geometry, material);
     seabed.name = mode === 1 ? 'underwater-seabed' : 'underwater-seabed-inner';
