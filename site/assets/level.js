@@ -70,7 +70,24 @@ export function fitSeabed(model) {
     const spread = Math.sqrt(residuals.reduce((t, r) => t + r * r, 0) / residuals.length);
     const kept = edge.filter((_, i) => Math.abs(residuals[i]) <= 2 * spread);
     if (kept.length >= 3) fit = fitPlane(kept);
-    return fit;
+
+    // How flat the edge is (10th to 90th percentile of its height off the
+    // plane), and how low the sand goes across the whole scan (8th
+    // percentile of the lowest point in each square). Where the edge is all
+    // sand, the sand often dips towards the wreck (scour), so a seabed at
+    // the edge's height would cover it.
+    const off = edge.map(([x, z, y]) => y - (fit.a * x + fit.b * z + fit.c)).sort((p, q) => p - q);
+    const pick = (arr, f) => arr[Math.min(arr.length - 1, Math.floor(f * arr.length))];
+    const lows = [];
+    for (let z = 0; z < N; z++) {
+        for (let x = 0; x < N; x++) {
+            if (!filled(x, z)) continue;
+            const px = box.min.x + (x + 0.5) * sx, pz = box.min.z + (z + 0.5) * sz;
+            lows.push(lowest[z * N + x] - (fit.a * px + fit.b * pz));
+        }
+    }
+    lows.sort((p, q) => p - q);
+    return { ...fit, edgeSpread: pick(off, 0.9) - pick(off, 0.1), lowSand: pick(lows, 0.08) };
 }
 
 // Least-squares y = a·x + b·z + c.

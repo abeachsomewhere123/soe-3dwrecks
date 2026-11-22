@@ -10,7 +10,7 @@
 // Units are the model's, which for our scans are metres.
 
 import * as THREE from 'three';
-import { levelModel, fitSeabed } from '/assets/level.js';
+import { levelModel, fitSeabed } from '/assets/level.js?v=3ffc2e16';
 
 // Colours are sampled from the reference renders.
 const WATER = '#1d5b77';        // fog, and the water at the horizon
@@ -43,9 +43,16 @@ export function addUnderwater(viewer) {
     const background = makeWaterBackground();
     const diveBackground = new THREE.Color(DIVE_WATER);
 
-    const seabed = makeSeabed(renderer);
-    seabed.visible = false;
-    scene.add(seabed);
+    // Two seabeds. The outer one meets the sand at the edge of the scan. Where
+    // the sand inside the scan dips below that (scour round a wreck), the
+    // outer one would bury it, so it leaves a hole the shape of the scan and
+    // a lower one fills that hole just under the scanned sand.
+    const sand = makeSandTexture();
+    sand.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    const seabed = makeSeabed(sand, 1);
+    const innerSeabed = makeSeabed(sand, 2);
+    seabed.visible = innerSeabed.visible = false;
+    scene.add(seabed, innerSeabed);
 
     const snow = makeSnow();
     snow.visible = false;
@@ -56,11 +63,26 @@ export function addUnderwater(viewer) {
     viewer.container?.appendChild(vignette) ?? document.body.appendChild(vignette);
 
     let modelLoaded = false;
+    let dished = false;
 
     viewer.on('modelLoaded', ({ model }) => {
         if (!model) return;
         levelView(model, below.cameraManager, viewer.config.models?.[viewer.currentModelKey]);
-        seabed.position.y = fitSeabed(model).c - 0.04;
+        const fit = fitSeabed(model);
+        seabed.position.y = fit.c - 0.04;
+        // Only where the scan's edge is all sand (flat to within a metre) and
+        // the sand inside goes clearly lower. Where the wreck runs to the
+        // edge of the scan (the Euro), one seabed at the edge's height.
+        dished = fit.edgeSpread !== undefined && fit.edgeSpread < 1.0 && fit.lowSand < fit.c - 0.1;
+        if (dished) {
+            const mask = scanFootprint(model);
+            for (const m of [seabed, innerSeabed]) {
+                m.material.userData.mask.value = mask.texture;
+                m.material.userData.maskBox.value.copy(mask.box);
+            }
+            innerSeabed.position.y = fit.lowSand - 0.04;
+        }
+        setMasked(seabed, dished);
         modelLoaded = true;
     });
 
@@ -72,7 +94,7 @@ export function addUnderwater(viewer) {
         const passthroughVR = below.isVRPassthroughSession?.() === true;
         if (renderer.xr.isPresenting && isARSession(renderer) && !passthroughVR) {
             // AR shows the real room. Leave the scene alone.
-            seabed.visible = snow.visible = false;
+            seabed.visible = innerSeabed.visible = snow.visible = false;
             return;
         }
         // Standing on the sand: the real floor takes over past the scan.
@@ -80,6 +102,7 @@ export function addUnderwater(viewer) {
 
         const diving = viewer.diveSystem?.isDiveMode?.() === true;
         seabed.visible = modelLoaded && !inRoom;
+        innerSeabed.visible = seabed.visible && dished;
         snow.visible = modelLoaded && !diving && !inRoom && renderer.xr.isPresenting;
         vignette.classList.toggle('is-diving', diving);
 
@@ -147,10 +170,9 @@ function makeWaterBackground() {
     return texture;
 }
 
-function makeSeabed(renderer) {
-    const map = makeSandTexture();
-    map.anisotropy = renderer.capabilities.getMaxAnisotropy();
-
+// A seabed plane. mode 1 (outer): hidden inside the scan's outline when a
+// mask is set. mode 2 (inner): shown only inside it.
+function makeSeabed(map, mode) {
     const geometry = new THREE.PlaneGeometry(SEABED_SIZE, SEABED_SIZE);
     geometry.rotateX(-Math.PI / 2);
     const uv = geometry.attributes.uv;
@@ -162,23 +184,48 @@ function makeSeabed(renderer) {
         map,
         color: '#ffffff',
         roughness: 1,
-        metalness: 0
+        metalness: 0,
+        // The outer seabed is seen from below through the gap at the scan's
+        // ragged edge when it has a hole cut in it.
+        side: mode === 1 ? THREE.DoubleSide : THREE.FrontSide
     });
+    const uniforms = {
+        uMask: { value: null },
+        uMaskBox: { value: new THREE.Vector4(0, 0, 1, 1) },   // min x, min z, size x, size z
+        uMaskOn: { value: 0 }
+    };
+    material.userData.mask = uniforms.uMask;
+    material.userData.maskBox = uniforms.uMaskBox;
+    material.userData.maskOn = uniforms.uMaskOn;
 
     // Break up the tiling: shade each patch of sand a little lighter or
-    // darker using the same texture sampled at a much larger scale.
+    // darker using the same texture sampled at a much larger scale. Then
+    // cut the plane to (or round) the scan's outline.
     material.onBeforeCompile = (shader) => {
-        shader.fragmentShader = shader.fragmentShader.replace(
+        Object.assign(shader.uniforms, uniforms);
+        shader.vertexShader = 'varying vec2 vSeabedXZ;\n' + shader.vertexShader.replace(
+            '#include <project_vertex>',
+            `#include <project_vertex>
+            vSeabedXZ = (modelMatrix * vec4(transformed, 1.0)).xz;`
+        );
+        shader.fragmentShader = 'varying vec2 vSeabedXZ;\nuniform sampler2D uMask;\nuniform vec4 uMaskBox;\nuniform float uMaskOn;\n' + shader.fragmentShader.replace(
             '#include <map_fragment>',
-            `#include <map_fragment>
+            `if (uMaskOn > 0.5) {
+                vec2 m = (vSeabedXZ - uMaskBox.xy) / uMaskBox.zw;
+                float inside = (m.x < 0.0 || m.y < 0.0 || m.x > 1.0 || m.y > 1.0) ? 0.0 : texture2D(uMask, m).r;
+                if (${mode === 1 ? 'inside > 0.5' : 'inside < 0.5'}) discard;
+            }
+            #include <map_fragment>
             float broad = texture2D(map, vMapUv * 0.071 + vec2(0.37, 0.11)).r;
             float broader = texture2D(map, vMapUv * 0.013 + vec2(0.71, 0.53)).g;
             diffuseColor.rgb *= 0.78 + 0.45 * broad * broader / 0.5;`
         );
     };
+    material.customProgramCacheKey = () => 'underwater-seabed-' + mode;
+    if (mode === 2) uniforms.uMaskOn.value = 1;
 
     const seabed = new THREE.Mesh(geometry, material);
-    seabed.name = 'underwater-seabed';
+    seabed.name = mode === 1 ? 'underwater-seabed' : 'underwater-seabed-inner';
     seabed.receiveShadow = true;
     // Keep double-click focus and measuring on the wreck itself.
     seabed.raycast = () => {};
@@ -346,4 +393,61 @@ function makeSnow() {
     snow.frustumCulled = false;
     snow.renderOrder = 10;
     return snow;
+}
+
+function setMasked(seabed, on) {
+    seabed.material.userData.maskOn.value = on ? 1 : 0;
+}
+
+// The scan's outline seen from above, as a mask texture: squares the scan
+// covers, small gaps closed, holes inside it filled, then pulled in by two
+// squares so the outer seabed still tucks under the scan's edge.
+function scanFootprint(model, N = 128) {
+    model.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(model);
+    const sx = (box.max.x - box.min.x) / N || 1, sz = (box.max.z - box.min.z) / N || 1;
+    let grid = new Uint8Array(N * N);
+    const v = new THREE.Vector3();
+    model.traverse((o) => {
+        const position = o.isMesh && o.geometry?.attributes?.position;
+        if (!position) return;
+        const step = Math.max(1, Math.floor(position.count / 400000));
+        for (let i = 0; i < position.count; i += step) {
+            v.fromBufferAttribute(position, i).applyMatrix4(o.matrixWorld);
+            const cx = Math.min(N - 1, Math.floor((v.x - box.min.x) / sx));
+            const cz = Math.min(N - 1, Math.floor((v.z - box.min.z) / sz));
+            grid[cz * N + cx] = 1;
+        }
+    });
+    const at = (g, x, z) => (x >= 0 && z >= 0 && x < N && z < N ? g[z * N + x] : 0);
+    const morph = (g, grow) => {
+        const out = new Uint8Array(N * N);
+        for (let z = 0; z < N; z++) {
+            for (let x = 0; x < N; x++) {
+                const n = [at(g, x, z), at(g, x - 1, z), at(g, x + 1, z), at(g, x, z - 1), at(g, x, z + 1)];
+                out[z * N + x] = grow ? (n.some(Boolean) ? 1 : 0) : (n.every(Boolean) ? 1 : 0);
+            }
+        }
+        return out;
+    };
+    grid = morph(morph(grid, true), false);                 // close small gaps
+    // Fill holes: anything not reachable from the border is inside.
+    const outside = new Uint8Array(N * N), stack = [];
+    for (let k = 0; k < N; k++) stack.push([k, 0], [k, N - 1], [0, k], [N - 1, k]);
+    while (stack.length) {
+        const [x, z] = stack.pop();
+        if (x < 0 || z < 0 || x >= N || z >= N) continue;
+        const i = z * N + x;
+        if (outside[i] || grid[i]) continue;
+        outside[i] = 1;
+        stack.push([x - 1, z], [x + 1, z], [x, z - 1], [x, z + 1]);
+    }
+    for (let i = 0; i < N * N; i++) grid[i] = outside[i] ? 0 : 1;
+    grid = morph(morph(grid, false), false);                 // pull in two squares
+    const data = new Uint8Array(N * N);
+    for (let i = 0; i < N * N; i++) data[i] = grid[i] * 255;
+    const texture = new THREE.DataTexture(data, N, N, THREE.RedFormat, THREE.UnsignedByteType);
+    texture.magFilter = texture.minFilter = THREE.NearestFilter;
+    texture.needsUpdate = true;
+    return { texture, box: new THREE.Vector4(box.min.x, box.min.z, box.max.x - box.min.x, box.max.z - box.min.z) };
 }

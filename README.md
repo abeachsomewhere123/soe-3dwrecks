@@ -15,7 +15,7 @@
 
 ## Underwater look
 
-`site/assets/underwater.js` adds blue water that fades with distance, a sandy seabed out to the horizon to the browser/VR viewer, plus drifting marine snow in VR. It finds the seabed height from the edge of each scan, so new models need no settings. Colours, haze and snow are constants at the top of the file. Add `&water=off` to a `/view/` link to see the bare scan.
+`site/assets/underwater.js` adds blue water that fades with distance, a sandy seabed out to the horizon to the browser/VR viewer, plus drifting marine snow in VR. It finds the seabed height from the edge of each scan, so new models need no settings. Colours, haze and snow are constants at the top of the file. Where the edge of a scan is all sand but the sand inside dips lower (scour round the wreck, as on the Batman), the seabed is cut to the scan's outline and a second, lower seabed fills the cut just under the scanned sand, so the scan's own sand isn't buried. Where the wreck runs to the edge of the scan (the Euro), there is one seabed at the edge's height. Add `&water=off` to a `/view/` link to see the bare scan.
 
 ## Seabed passthrough (test site only)
 
