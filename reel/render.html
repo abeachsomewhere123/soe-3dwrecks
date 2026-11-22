@@ -79,6 +79,10 @@ const lev = (p) => new THREE.Vector3(...p).sub(pivot).applyQuaternion(level).add
   const tx = await new THREE.TextureLoader().loadAsync('/sand.jpg'); tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 8;
   const mat = new THREE.MeshStandardMaterial({ map: tx, color: new THREE.Color(L.sandTint), roughness: 1, metalness: 0, side: THREE.DoubleSide });
   const seabed = new THREE.Mesh(g, mat); scene.add(seabed); window.seabedMesh = seabed;
+  // A flat sand underlay below everything, so any gap between the scan's edge
+  // and the seabed above shows sand, not open water.
+  const under = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200).rotateX(-Math.PI / 2), mat);
+  under.position.set(cx, box.min.y - 0.15, cz); scene.add(under); seabed.add = seabed.add; window.underlay = under;
   window.seabedInfo = { edgeHeight: y0, spread: ys[Math.floor(ys.length * 0.95)] - ys[Math.floor(ys.length * 0.05)], points: m };
 }
 
@@ -113,7 +117,28 @@ window.frame = (i) => {
   torch.position.copy(p).add(new THREE.Vector3(0.25, -0.35, 0).applyQuaternion(cam.quaternion)); torch.target.position.copy(g); torch.target.updateMatrixWorld();
   for (let n = 0; n < NP; n++) for (let j = 0; j < 3; j++) { const c = p.getComponent(j); let x = base[n * 3 + j] + drift[n * 3 + j] * t * 10 - (c - BOX / 2); x = ((x % BOX) + BOX) % BOX; pp[n * 3 + j] = c - BOX / 2 + x; }
   pg.attributes.position.needsUpdate = true;
-  r.render(scene, cam); return r.domElement.toDataURL('image/jpeg', 0.93);
+  r.render(scene, cam);
+  if (!C.depthGauge) return r.domElement.toDataURL('image/jpeg', 0.93);
+  // Depth gauge: the viewer's depth, from the seabed depth and the camera's
+  // height above the sand at the edge of the scan.
+  const G = C.depthGauge, k = C.width / 1080;
+  const depth = Math.max(0, G.seabed - (p.y - (G.sandY ?? window.seabedInfo.edgeHeight)));
+  const hud = window.hud ??= Object.assign(document.createElement('canvas'), { width: C.width, height: C.height });
+  const c = hud.getContext('2d'); c.clearRect(0, 0, C.width, C.height); c.drawImage(r.domElement, 0, 0);
+  const x = (G.x ?? 60) * k, y = (G.y ?? 1250) * k, w = 300 * k, h = 168 * k;
+  c.fillStyle = 'rgba(2, 18, 28, 0.55)'; c.beginPath(); c.roundRect(x, y, w, h, 26 * k); c.fill();
+  c.strokeStyle = 'rgba(205, 232, 242, 0.35)'; c.lineWidth = 2 * k; c.stroke();
+  c.fillStyle = 'rgba(205, 232, 242, 0.9)'; c.font = `600 ${26 * k}px Inter, "DejaVu Sans", sans-serif`; c.textBaseline = 'alphabetic';
+  c.fillText('DEPTH', x + 28 * k, y + 50 * k);
+  c.fillStyle = '#ffffff'; c.font = `700 ${84 * k}px Inter, "DejaVu Sans", sans-serif`;
+  const txt = depth.toFixed(1); c.fillText(txt, x + 26 * k, y + 136 * k);
+  const tw = c.measureText(txt).width; c.fillStyle = 'rgba(205, 232, 242, 0.9)'; c.font = `600 ${38 * k}px Inter, "DejaVu Sans", sans-serif`;
+  c.fillText('m', x + 36 * k + tw, y + 136 * k);
+  // A small bar: how far down towards the seabed.
+  const bx = x + w - 34 * k, by = y + 26 * k, bh = h - 52 * k, f = Math.min(1, depth / G.seabed);
+  c.fillStyle = 'rgba(205, 232, 242, 0.2)'; c.fillRect(bx, by, 8 * k, bh);
+  c.fillStyle = '#7fd4f0'; c.fillRect(bx, by, 8 * k, bh * f);
+  return hud.toDataURL('image/jpeg', 0.93);
 };
 // Survey views for picking keyframes: orthographic top-down (model coordinates, unlevelled grid labels added later).
 window.survey = (pos, look, fov) => { const fg = scene.fog; scene.fog = null; cam.fov = fov; cam.updateProjectionMatrix(); cam.position.copy(lev(pos)); cam.lookAt(lev(look)); dome.position.copy(cam.position); pts.visible = false; r.render(scene, cam); scene.fog = fg; pts.visible = true; cam.fov = L.fov; cam.updateProjectionMatrix(); return r.domElement.toDataURL('image/jpeg', 0.9); };
@@ -122,12 +147,12 @@ window.surveyTop = (px) => { const m = 3, x0 = box0.min.x - m, x1 = box0.max.x +
   const hw = (x1 - x0) / 2, hh = (z1 - z0) / 2, W0 = r.domElement.width, H0 = r.domElement.height;
   const oc = new THREE.OrthographicCamera(-hw, hw, hh, -hh, 0.1, 1000); const c = new THREE.Vector3((x0 + x1) / 2, box0.max.y + 50, (z0 + z1) / 2);
   // drawn un-levelled, so the grid labels are exact model coordinates
-  const q0 = wreck.quaternion.clone(), p0 = wreck.position.clone(); if (wreck !== model) { wreck.quaternion.identity(); wreck.position.set(0, 0, 0); wreck.updateMatrixWorld(true); } window.seabedMesh.visible = false;
+  const q0 = wreck.quaternion.clone(), p0 = wreck.position.clone(); if (wreck !== model) { wreck.quaternion.identity(); wreck.position.set(0, 0, 0); wreck.updateMatrixWorld(true); } window.seabedMesh.visible = false; window.underlay.visible = false;
   oc.position.copy(c); oc.up.set(0, 0, -1); oc.lookAt(c.x, c.y - 100, c.z); r.setSize(px, Math.round(px * hh / hw)); pts.visible = false; const fg = scene.fog; scene.fog = null; dome.visible = false;
   // named points in red, camera keyframes in yellow, so the route can be checked against the wreck
   const marks = new THREE.Group(); const dot = (p, col, rad) => { const m = new THREE.Mesh(new THREE.SphereGeometry(rad, 12, 8), new THREE.MeshBasicMaterial({ color: col, depthTest: false })); m.position.set(...p); m.renderOrder = 9; marks.add(m); };
   Object.values(named).forEach((p) => dot(p, 0xff3030, 0.6)); C.keyframes.forEach((k) => dot(pt(k.pos), 0xffd400, 0.45));
-  scene.add(marks); r.render(scene, oc); scene.remove(marks); scene.fog = fg; dome.visible = true; window.seabedMesh.visible = true;
+  scene.add(marks); r.render(scene, oc); scene.remove(marks); scene.fog = fg; dome.visible = true; window.seabedMesh.visible = true; window.underlay.visible = true;
   wreck.quaternion.copy(q0); wreck.position.copy(p0); wreck.updateMatrixWorld(true); const u = r.domElement.toDataURL('image/jpeg', 0.9); r.setSize(C.width, C.height); pts.visible = true; return { u, x0, x1, z0, z1 }; };
 window.info = { min: box0.min.toArray(), max: box0.max.toArray(), centre: pivot.toArray() };
 window.ready = true;

@@ -50,6 +50,8 @@ Everything under `look` has a default in `make_reel.py` (`DEFAULT_LOOK`), and a 
 | `sway` | 1 | Diver sway and breathing bob; 0 for a steady camera |
 | `sandTile`, `sandTint` | 2.5, `#ffffff` | Repeat size and tint of the sand that extends the seabed past the scan |
 
+A depth gauge (the viewer's depth, as on a dive computer) is drawn on each frame when the config has `"depthGauge": {"seabed": 47}`, the seabed depth in metres. Optional `x` and `y` place it in a 1080×1920 frame (default 60, 1250: left, clear of Instagram's buttons), and `sandY` sets the sand height in model units if the scan's edge isn't the seabed. `wrecks/batman.json` uses it. A flat sand underlay sits below the scan, so gaps at its edge show sand rather than water.
+
 Levelling: the scan is turned so the sand at its edge lies flat, as in `/view/`. Set `"level": false` to keep the scan as it is.
 
 The finished file is H.264, high profile, about 12 Mbit/s, with a silent AAC track so music can be added in Instagram.

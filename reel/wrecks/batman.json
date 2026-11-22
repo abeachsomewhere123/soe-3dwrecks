@@ -1,0 +1,349 @@
+{
+ "name": "Batman",
+ "model": "https://models.southernoceanexploration.com/f/Batman.glb",
+ "duration": 75,
+ "notes": "Armed steam hopper barge, 1883. Facts from the Victorian Heritage Register (S65). Seabed depth 47 m (SOE). Coordinates are the model's own, in metres: x runs along the wreck (-27 to +27), y up (sand at about 0), z across. The boiler and engine room label is placed from the shape of the mesh (the tall encrusted structure amidships at x 3 to 7), not a survey. The three technical divers are added to the model for scale (1.8 m tall).",
+ "points": {
+  "centre": [
+   0,
+   0.5,
+   0
+  ],
+  "engine": [
+   4.8,
+   1.6,
+   -1.0
+  ],
+  "diver1": [
+   -10,
+   1.3,
+   0.5
+  ],
+  "diver2": [
+   4.5,
+   1.4,
+   -5.8
+  ],
+  "diver3": [
+   15,
+   2.3,
+   3.0
+  ],
+  "end": [
+   21.5,
+   1.5,
+   0
+  ]
+ },
+ "keyframes": [
+  {
+   "t": 0.0,
+   "pos": [
+    -24,
+    27,
+    21
+   ],
+   "look": "centre",
+   "note": "high above, wreck faint below"
+  },
+  {
+   "t": 7.0,
+   "pos": [
+    -24,
+    19,
+    17
+   ],
+   "look": [
+    -12,
+    1,
+    1
+   ],
+   "note": "descending"
+  },
+  {
+   "t": 13.0,
+   "pos": [
+    -18,
+    6.5,
+    8
+   ],
+   "look": [
+    -10,
+    1.2,
+    0.5
+   ],
+   "note": "behind the first diver"
+  },
+  {
+   "t": 19.0,
+   "pos": [
+    -13,
+    3.6,
+    5.5
+   ],
+   "look": [
+    -5,
+    1.2,
+    0
+   ],
+   "note": "along the hopper with the diver"
+  },
+  {
+   "t": 25.0,
+   "pos": [
+    -5,
+    3.8,
+    6.5
+   ],
+   "look": [
+    2,
+    1.4,
+    -0.5
+   ]
+  },
+  {
+   "t": 30.0,
+   "pos": [
+    0.5,
+    4.2,
+    6.8
+   ],
+   "look": "engine",
+   "note": "boiler and engine room"
+  },
+  {
+   "t": 35.0,
+   "pos": [
+    8,
+    4.4,
+    5.5
+   ],
+   "look": "engine"
+  },
+  {
+   "t": 39.5,
+   "pos": [
+    11.5,
+    4.2,
+    -3.5
+   ],
+   "look": "engine",
+   "note": "round the far side"
+  },
+  {
+   "t": 44.0,
+   "pos": [
+    8.5,
+    2.9,
+    -10
+   ],
+   "look": "diver2",
+   "note": "second diver alongside"
+  },
+  {
+   "t": 49.0,
+   "pos": [
+    1.5,
+    2.4,
+    -9.5
+   ],
+   "look": "diver2"
+  },
+  {
+   "t": 53.5,
+   "pos": [
+    8,
+    4.2,
+    -9
+   ],
+   "look": [
+    15,
+    1.5,
+    -1
+   ]
+  },
+  {
+   "t": 58.0,
+   "pos": [
+    17,
+    4.6,
+    -7.5
+   ],
+   "look": "end",
+   "note": "towards the end of the wreck"
+  },
+  {
+   "t": 62.5,
+   "pos": [
+    27,
+    4.6,
+    1
+   ],
+   "look": [
+    18,
+    1.6,
+    1.5
+   ],
+   "note": "round the end"
+  },
+  {
+   "t": 66.5,
+   "pos": [
+    22,
+    5.2,
+    9
+   ],
+   "look": "diver3",
+   "note": "third diver over the wreck"
+  },
+  {
+   "t": 70.0,
+   "pos": [
+    14,
+    10,
+    14
+   ],
+   "look": [
+    6,
+    1,
+    1
+   ],
+   "note": "rising"
+  },
+  {
+   "t": 75.0,
+   "pos": [
+    2,
+    30,
+    24
+   ],
+   "look": "centre",
+   "note": "ascent, looking back down"
+  }
+ ],
+ "titles": [
+  {
+   "start": 1.0,
+   "end": 7.5,
+   "y": 360,
+   "lines": [
+    {
+     "text": "BATMAN",
+     "bold": true,
+     "size": 150,
+     "track": 18,
+     "gap": 22
+    },
+    {
+     "text": "Armed steam hopper barge  \u00b7  built 1883",
+     "size": 42
+    },
+    {
+     "text": "Scuttled 1935  \u00b7  Ships' Graveyard, Bass Strait",
+     "size": 36
+    }
+   ]
+  },
+  {
+   "start": 15.5,
+   "end": 23.0,
+   "y": 330,
+   "lines": [
+    {
+     "text": "Part of Victoria's colonial navy",
+     "bold": true,
+     "size": 56,
+     "gap": 18
+    },
+    {
+     "text": "A Melbourne Harbour Trust dredging barge,",
+     "size": 38
+    },
+    {
+     "text": "armed in 1885 with a 6-inch gun",
+     "size": 38
+    },
+    {
+     "text": "and two Nordenfelt machine guns",
+     "size": 38
+    }
+   ]
+  },
+  {
+   "start": 42.5,
+   "end": 50.0,
+   "y": 330,
+   "lines": [
+    {
+     "text": "DIVERS FOR SCALE",
+     "bold": true,
+     "size": 64,
+     "track": 8,
+     "gap": 18
+    },
+    {
+     "text": "Technical divers with twin tanks,",
+     "size": 38
+    },
+    {
+     "text": "stages and scooters  \u00b7  about 1.8 m tall",
+     "size": 38
+    }
+   ]
+  },
+  {
+   "start": 54.5,
+   "end": 61.0,
+   "y": 330,
+   "lines": [
+    {
+     "text": "47 m long  \u00b7  8 m beam",
+     "bold": true,
+     "size": 56,
+     "gap": 18
+    },
+    {
+     "text": "Scuttled in 1935 after 52 years' service",
+     "size": 38
+    }
+   ]
+  }
+ ],
+ "labels": [
+  {
+   "text": "BOILER & ENGINE ROOM",
+   "start": 28.5,
+   "end": 36.5
+  }
+ ],
+ "endcard": {
+  "start": 70.2,
+  "logo": true,
+  "lines": [
+   {
+    "text": "Southern Ocean Exploration",
+    "bold": true,
+    "size": 58,
+    "gap": 26
+   },
+   {
+    "text": "Explore the 3D model",
+    "size": 38,
+    "gap": 8
+   },
+   {
+    "text": "3dwrecks.southernoceanexploration.com",
+    "size": 34
+   }
+  ]
+ },
+ "cover": {
+  "time": 46.5,
+  "kicker": "VIRTUAL DIVE",
+  "title": "BATMAN",
+  "subtitle": "Armed hopper barge  \u00b7  Ships' Graveyard, Bass Strait"
+ },
+ "depthGauge": {
+  "seabed": 47
+ }
+}
