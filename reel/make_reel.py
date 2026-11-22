@@ -139,7 +139,16 @@ def render(cfg, job, workers):
     subprocess.run(cmd, check=True); print("Video:", out)
     c = cfg.get("cover")
     if c:
-        im = Image.open(os.path.join(job, "frames", f"f{min(n - 1, round(c['time'] * cfg['fps'])):05d}.jpg")).convert("RGB")
+        i = min(n - 1, round(c['time'] * cfg['fps'])); src = os.path.join(job, "frames", f"f{i:05d}.jpg")
+        if cfg.get("depthGauge"):
+            # The cover has its own title, so render its frame again without the gauge.
+            cj = os.path.join(job, "cover"); os.makedirs(cj, exist_ok=True)
+            json.dump({k: v for k, v in cfg.items() if k != "depthGauge"}, open(os.path.join(cj, "reel.json"), "w"), indent=1)
+            if not os.path.exists(os.path.join(cj, "model.glb")): os.link(os.path.join(job, "model.glb"), os.path.join(cj, "model.glb"))
+            src = os.path.join(cj, "frames", f"f{i:05d}.jpg")
+            if os.path.exists(src): os.remove(src)
+            node(cj, "frames", str(i))
+        im = Image.open(src).convert("RGB")
         im = ImageEnhance.Color(ImageEnhance.Contrast(im).enhance(1.06)).enhance(1.08)
         a = np.asarray(im).astype(float); y = np.linspace(0, 1, a.shape[0])[:, None, None]; sh = np.clip((y - 0.55) / 0.4, 0, 1) * 0.55
         im = Image.fromarray((a * (1 - sh) + np.array([4, 22, 34]) * sh).clip(0, 255).astype("uint8")).convert("RGBA")
