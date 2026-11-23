@@ -17,7 +17,7 @@
         }
     }
     </script>
-    <!-- Test site: three.js and BelowJS are served from /vendor/ (BelowJS built from abeachsomewhere123/belowjs 5bf0695, with seabed passthrough). Live still uses the CDN. -->
+    <!-- three.js and BelowJS are served from /vendor/ (BelowJS built from abeachsomewhere123/belowjs 5bf0695). -->
     <link rel="stylesheet" href="/vendor/belowjs/1.8.0-dev.5bf0695/belowjs.css">
     <link rel="stylesheet" href="/assets/viewer.css">
     <link rel="stylesheet" href="/assets/wreck-extras.css?v=cac290bd">
@@ -167,12 +167,9 @@
                 enableScreenshot: true,
                 autoLoadFirst: false,
                 viewerConfig: {
-                    scene: { background: '#001122' },
-                    // On passthrough headsets, standing on the sand in VR shows
-                    // the room with the wreck around you at full scale.
-                    // Eyes 3 m above the sand when standing on it, whatever
-                    // your height, so you look across the wreck, not along the sand.
-                    vr: { passthroughOnSeabed: true, passthroughEyeHeight: 3 }
+                    scene: { background: '#001122' }
+                    // VR stays underwater throughout: seabed passthrough
+                    // (vr.passthroughOnSeabed) is left off.
                 }
             });
 
