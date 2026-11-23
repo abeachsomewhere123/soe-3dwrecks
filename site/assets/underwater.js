@@ -89,16 +89,21 @@ export function addUnderwater(viewer) {
     const cameraPosition = new THREE.Vector3();
 
     below.on('before-render', (deltaTime) => {
-        if (renderer.xr.isPresenting && isARSession(renderer)) {
+        // VR with seabed passthrough runs as an AR session but is VR until
+        // you stand on the sand; BelowJS fades the water and fog out there.
+        const passthroughVR = below.isVRPassthroughSession?.() === true;
+        if (renderer.xr.isPresenting && isARSession(renderer) && !passthroughVR) {
             // AR shows the real room. Leave the scene alone.
             seabed.visible = innerSeabed.visible = snow.visible = false;
             return;
         }
+        // Standing on the sand: the real floor takes over past the scan.
+        const inRoom = passthroughVR && below.isVRPassthrough?.() === true;
 
         const diving = viewer.diveSystem?.isDiveMode?.() === true;
-        seabed.visible = modelLoaded;
+        seabed.visible = modelLoaded && !inRoom;
         innerSeabed.visible = seabed.visible && dished;
-        snow.visible = modelLoaded && !diving && renderer.xr.isPresenting;
+        snow.visible = modelLoaded && !diving && !inRoom && renderer.xr.isPresenting;
         vignette.classList.toggle('is-diving', diving);
 
         if (diving) {
@@ -112,9 +117,10 @@ export function addUnderwater(viewer) {
         if (scene.background !== background) scene.background = background;
         if (scene.fog !== fog) scene.fog = fog;
 
-        const camera = renderer.xr.isPresenting
-            ? renderer.xr.getCamera()
-            : below.cameraManager.camera;
+        // In VR three copies the headset pose into this camera, inside the
+        // BelowJS rig. renderer.xr.getCamera() is still the pose in the room
+        // at this point, which would centre the snow on the wrong spot.
+        const camera = below.cameraManager.camera;
         camera.getWorldPosition(cameraPosition);
 
         const controls = below.cameraManager.getControls?.();

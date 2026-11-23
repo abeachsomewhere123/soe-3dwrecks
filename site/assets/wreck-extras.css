@@ -1,0 +1,193 @@
+/* Points of interest, then and now, and depth (wreck-extras.js). */
+
+.wx-panel,
+.wx-card {
+    position: absolute;
+    z-index: 5;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #d6e9f5;
+    background: rgba(2, 22, 36, 0.86);
+    border: 1px solid rgba(127, 163, 186, 0.28);
+    border-radius: 12px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+}
+
+.wx-panel[hidden],
+.wx-card[hidden],
+.wx-panel [hidden],
+.wx-card [hidden] { display: none; }
+
+.wx-panel {
+    left: 16px;
+    bottom: 66px; /* clear of the All wrecks link */
+    width: 260px;
+    max-height: calc(100% - 270px);
+    overflow: auto;
+    font-size: 0.85rem;
+}
+
+.wx-panel__toggle {
+    display: block;
+    width: 100%;
+    padding: 11px 14px;
+    border: 0;
+    background: none;
+    color: #ffffff;
+    font: 600 0.88rem/1.2 inherit;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.wx-panel__toggle::after {
+    content: '';
+    float: right;
+    width: 7px;
+    height: 7px;
+    margin-top: 3px;
+    border-right: 2px solid #7fa3ba;
+    border-bottom: 2px solid #7fa3ba;
+    transform: rotate(45deg);
+    transition: transform 0.2s;
+}
+
+.wx-panel.is-collapsed .wx-panel__toggle::after { transform: rotate(-135deg); margin-top: 6px; }
+.wx-panel.is-collapsed .wx-panel__body { display: none; }
+
+.wx-panel__body { padding: 0 14px 12px; }
+
+.wx-panel__pois {
+    margin: 0 0 10px;
+    padding: 0;
+    list-style: none;
+}
+
+.wx-panel__pois button {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 6px 4px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.wx-panel__pois button:hover,
+.wx-panel__pois button:focus-visible { background: rgba(127, 163, 186, 0.14); outline: none; }
+.wx-panel__pois button.is-active { color: #ffffff; background: rgba(255, 211, 107, 0.14); }
+
+.wx-num {
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border: 2px solid #ffd36b;
+    border-radius: 50%;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.wx-panel__then {
+    padding-top: 10px;
+    border-top: 1px solid rgba(127, 163, 186, 0.22);
+}
+
+.wx-panel__label { display: block; margin-bottom: 4px; color: #ffffff; font-weight: 600; }
+
+.wx-panel__then input { width: 100%; accent-color: #9fe8ff; }
+
+.wx-panel__scale {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.74rem;
+    color: #7fa3ba;
+}
+
+.wx-panel__note {
+    margin: 6px 0 0;
+    font-size: 0.72rem;
+    line-height: 1.45;
+    color: #7fa3ba;
+}
+
+.wx-panel__depth {
+    margin: 10px 0 0;
+    padding-top: 9px;
+    border-top: 1px solid rgba(127, 163, 186, 0.22);
+    font-variant-numeric: tabular-nums;
+    color: #d6e9f5;
+}
+
+.wx-card {
+    right: 16px;
+    top: 100px; /* below the survey and dive switch */
+    width: 300px;
+    max-height: calc(100% - 300px); /* clear of the screenshot and measure buttons */
+    overflow: auto;
+    padding: 14px 16px 12px;
+    font-size: 0.86rem;
+    line-height: 1.5;
+}
+
+.wx-card__close {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    width: 30px;
+    height: 30px;
+    border: 0;
+    background: none;
+    color: #7fa3ba;
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.wx-card__close:hover { color: #ffffff; }
+
+.wx-card__photo {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    background: #04121d;
+}
+
+.wx-card__title { margin: 0 30px 2px 0; font-size: 1.05rem; color: #ffffff; }
+.wx-card__built { margin: 0 0 8px; font-size: 0.78rem; color: #ffd36b; }
+.wx-card__text { margin: 0 0 8px; }
+.wx-card__source { margin: 0; font-size: 0.74rem; color: #7fa3ba; }
+
+@media (max-width: 640px) {
+    .wx-panel { left: 10px; bottom: 58px; width: calc(100% - 20px); max-width: 300px; max-height: 50%; }
+    /* Over the BelowJS buttons until closed, clear of the All wrecks link. */
+    .wx-card { left: 10px; right: 10px; top: auto; bottom: 58px; width: auto; max-height: 62%; z-index: 1001; }
+}
+
+.wx-panel__inside {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    padding: 8px 10px;
+    border: 1px solid rgba(255, 211, 107, 0.6);
+    border-radius: 8px;
+    background: rgba(255, 211, 107, 0.12);
+    color: #ffffff;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.wx-panel__inside:hover,
+.wx-panel__inside:focus-visible { background: rgba(255, 211, 107, 0.24); outline: none; }

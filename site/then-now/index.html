@@ -41,7 +41,9 @@
         /* A cut-down view: none of the BelowJS panels and buttons. */
         .info-panel, .dive-mode-toggle-container, .measurement-panel,
         .belowjs-screenshot-button, .screenshot-button, .fullscreen-button,
-        .vr-comfort-circle, .vr-comfort-glyph, #VRButton, #ARButton { display: none !important; }
+        .vr-comfort-circle, .vr-comfort-glyph, #ARButton { display: none !important; }
+        /* The Enter VR button (only shown where VR works), top right, clear of the note. */
+        #VRButton { top: 16px !important; right: 16px !important; bottom: auto !important; left: auto !important; transform: none !important; z-index: 6 !important; }
 
         /* Header: logo, wreck name, a line on what this is. */
         .tn-head {
@@ -228,8 +230,10 @@
         import { ModelViewer } from 'belowjs';
         import { addBackLink } from '/assets/xr-prompt.js';
         import { fitStartViewToScreen } from '/assets/fit-view.js';
-        import { addUnderwater } from '/assets/underwater.js?v=f2581197';
-        import { addWreckExtras } from '/assets/wreck-extras.js?v=ecf7aa0c';
+        import { addUnderwater } from '/assets/underwater.js?v=8bfe6ef1';
+        import { addWreckExtras } from '/assets/wreck-extras.js?v=babbf198';
+        import { addVrStarts } from '/assets/xr-start.js';
+        import { addVrExit } from '/assets/vr-exit.js';
 
         const statusEl = document.getElementById('status');
         const showStatus = (heading, detail) => {
@@ -268,8 +272,9 @@
             }
 
             const one = { [key]: models[key] };
+            addVrStarts(one);   // start VR beside the wreck, not inside it
             const viewer = new ModelViewer(document.getElementById('viewer'), {
-                enableVR: false,
+                enableVR: true,
                 enableAR: false,
                 enableMeasurement: false,
                 enableDiveSystem: true,      // it also provides the lighting
@@ -281,7 +286,12 @@
                 models: one,
                 autoLoadFirst: false,
                 assetBasePath: '/vendor/below-assets/',
-                viewerConfig: { scene: { background: '#001122' } }
+                viewerConfig: {
+                    scene: { background: '#001122' },
+                    // As in the main viewer: standing on the sand shows the
+                    // room on passthrough headsets, eyes 3 m above the sand.
+                    vr: { passthroughOnSeabed: true, passthroughEyeHeight: 3 }
+                }
             });
             document.getElementById('tn-name').textContent = models[key].name || key;
             document.title = `${models[key].name || key}: then and now`;
@@ -290,9 +300,104 @@
             addUnderwater(viewer);
             const extras = addWreckExtras(viewer, { ui: false, dimWreck: false, inside: false });
             addBackLink();
+            addVrExit(viewer);
+            keepSurveyMode(viewer);
             setUpComparison(viewer, extras);
+            setUpVr(viewer, extras);
             statusEl.hidden = true;
             setTimeout(() => viewer.loadModel(key), 100);
+        }
+
+        // No dive mode (the dive system stays for its lighting).
+        function keepSurveyMode(viewer) {
+            const lock = () => {
+                const dive = viewer.diveSystem;
+                if (!dive || dive.surveyOnly) return !!dive;
+                const set = dive.setDiveMode.bind(dive);
+                dive.setDiveMode = () => set(false);
+                dive.surveyOnly = true;
+                set(false);
+                return true;
+            };
+            if (!lock()) { const wait = setInterval(() => { if (lock()) clearInterval(wait); }, 100); }
+        }
+
+        // In VR there is no divider (each eye has its own picture): you start
+        // with the wreck as it is now, and a thumbstick click fades the ship
+        // in, darkening the scan, and back. A hint floats in front of you for
+        // the first few seconds.
+        function setUpVr(viewer, extras) {
+            const below = viewer.belowViewer;
+            const renderer = below.renderer;
+            let hint = null, hintUntil = 0;
+            renderer.xr.addEventListener('sessionstart', () => {
+                extras.setOption('dimWreck', true);
+                extras.setBlend(0);
+                hint ??= makeHint('Click a thumbstick to switch between then and now');
+                below.sceneManager.scene.add(hint);
+                hintUntil = performance.now() + 9000;
+                placed = false;
+            });
+            renderer.xr.addEventListener('sessionend', () => {
+                extras.setOption('dimWreck', false);
+                extras.setBlend(1);
+                hint?.removeFromParent();
+            });
+            let placed = false;
+            const eye = new THREE.Vector3(), dir = new THREE.Vector3(), q = new THREE.Quaternion();
+            // Remember the browser view each frame, and put it back after VR.
+            const saved = { position: new THREE.Vector3(), target: new THREE.Vector3(), ok: false };
+            renderer.xr.addEventListener('sessionend', () => {
+                const put = () => {
+                    const controls = below.cameraManager.getControls?.();
+                    if (!saved.ok || !controls) return;
+                    below.cameraManager.camera.position.copy(saved.position);
+                    controls.target.copy(saved.target);
+                    controls.update();
+                };
+                put(); setTimeout(put, 100); setTimeout(put, 400);
+            });
+            below.on('before-render', () => {
+                if (!renderer.xr.isPresenting) {
+                    const controls = below.cameraManager.getControls?.();
+                    const camera = below.cameraManager.camera;
+                    if (controls && (!camera.parent || camera.parent.isScene || camera.parent.position.lengthSq() === 0)) {
+                        saved.position.copy(camera.position); saved.target.copy(controls.target); saved.ok = true;
+                    }
+                    return;
+                }
+                if (!hint?.parent) return;
+                const left = hintUntil - performance.now();
+                if (left <= 0) { hint.removeFromParent(); return; }
+                hint.material.opacity = Math.min(1, left / 1000);
+                if (placed) return;
+                // Two metres ahead of where you first look, at eye height.
+                const camera = below.cameraManager.camera, rig = camera.parent, head = renderer.xr.getCamera();
+                rig.updateWorldMatrix(true, false);
+                eye.copy(head.position).applyMatrix4(rig.matrixWorld);
+                dir.set(0, 0, -1).applyQuaternion(head.quaternion).applyQuaternion(rig.getWorldQuaternion(q));
+                dir.y = 0; dir.normalize();
+                if (!Number.isFinite(dir.x)) return;
+                hint.position.copy(eye).addScaledVector(dir, 2);
+                placed = true;
+            });
+        }
+
+        function makeHint(text) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024; canvas.height = 160;
+            const c = canvas.getContext('2d');
+            c.fillStyle = 'rgba(2, 22, 36, 0.78)';
+            c.beginPath(); c.roundRect(4, 4, 1016, 152, 76); c.fill();
+            c.fillStyle = '#ffffff'; c.font = '600 38px -apple-system, "Segoe UI", Roboto, sans-serif';
+            c.textAlign = 'center'; c.textBaseline = 'middle';
+            c.fillText(text, 512, 82);
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.colorSpace = THREE.SRGBColorSpace;
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false, fog: false }));
+            sprite.scale.set(1.6, 0.25, 1);
+            sprite.renderOrder = 40;
+            return sprite;
         }
 
         function setUpComparison(viewer, extras) {
@@ -370,7 +475,7 @@
             viewer.on('modelLoaded', () => {
                 // The reconstruction fully in, the wreck at its own colours.
                 // The THEN tag says it is a reconstruction, so no floating label.
-                extras.setBlend(1);
+                if (!renderer.xr.isPresenting) extras.setBlend(1);
                 // The reconstruction is built once its data file arrives,
                 // a moment after the model; finish setting up then.
                 const ready = setInterval(() => {

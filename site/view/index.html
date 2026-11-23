@@ -12,13 +12,15 @@
     <script type="importmap">
     {
         "imports": {
-            "three": "https://cdn.jsdelivr.net/npm/three@0.179.1/+esm",
-            "belowjs": "https://cdn.jsdelivr.net/npm/belowjs@1.8.0/dist/belowjs.js"
+            "three": "/vendor/three/0.179.1/three.module.js",
+            "belowjs": "/vendor/belowjs/1.8.0-dev.5bf0695/belowjs.js"
         }
     }
     </script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/belowjs@1.8.0/dist/belowjs.css">
+    <!-- Test site: three.js and BelowJS are served from /vendor/ (BelowJS built from abeachsomewhere123/belowjs 5bf0695, with seabed passthrough). Live still uses the CDN. -->
+    <link rel="stylesheet" href="/vendor/belowjs/1.8.0-dev.5bf0695/belowjs.css">
     <link rel="stylesheet" href="/assets/viewer.css">
+    <link rel="stylesheet" href="/assets/wreck-extras.css?v=cac290bd">
 
     <style>
         html, body {
@@ -32,6 +34,18 @@
         }
 
         #viewer { position: fixed; inset: 0; z-index: 0; }
+
+        /* Survey only: no Survey/Dive switch. */
+        .dive-mode-toggle-container, #modeToggleContainer { display: none !important; }
+
+        /* SOE logo beside the name in the info panel. The logo is black on
+           transparent, so it is inverted to white for the dark panel. */
+        .soe-title { display: flex; align-items: center; gap: 12px; }
+        .soe-title__logo { flex: none; width: 56px; height: auto; filter: invert(1); opacity: 0.95; }
+        @media (max-width: 600px), (max-height: 500px) {
+            .soe-title { gap: 8px; }
+            .soe-title__logo { width: 34px; }
+        }
 
         #status {
             position: fixed;
@@ -90,7 +104,9 @@
         import { addBackLink, showXrPrompt } from '/assets/xr-prompt.js';
         import { fitStartViewToScreen } from '/assets/fit-view.js';
         import { addVrStarts } from '/assets/xr-start.js';
-        import { addUnderwater } from '/assets/underwater.js?v=f2581197';
+        import { addUnderwater } from '/assets/underwater.js?v=8bfe6ef1';
+        import { addWreckExtras } from '/assets/wreck-extras.js?v=babbf198';
+        import { addVrExit } from '/assets/vr-exit.js';
 
         const statusEl = document.getElementById('status');
 
@@ -141,6 +157,8 @@
             addVrStarts(models);
 
             const viewer = new ModelViewer(document.getElementById('viewer'), {
+                // Draco and KTX2 decoders and VR controller models: self-hosted (see /vendor/README.md).
+                assetBasePath: '/vendor/below-assets/',
                 enableVR: true,
                 showInfo: true,
                 models: models,
@@ -149,7 +167,12 @@
                 enableScreenshot: true,
                 autoLoadFirst: false,
                 viewerConfig: {
-                    scene: { background: '#001122' }
+                    scene: { background: '#001122' },
+                    // On passthrough headsets, standing on the sand in VR shows
+                    // the room with the wreck around you at full scale.
+                    // Eyes 3 m above the sand when standing on it, whatever
+                    // your height, so you look across the wreck, not along the sand.
+                    vr: { passthroughOnSeabed: true, passthroughEyeHeight: 3 }
                 }
             });
 
@@ -158,12 +181,40 @@
             const requested = params.get('model');
             const initial = requested && models[requested] ? requested : keys[0];
 
-            // BelowJS hardcodes "BelowJS" as the info panel title, so swap it here.
+            // BelowJS hardcodes "BelowJS" as the info panel title, so swap it
+            // for the SOE logo and name.
             const setInfoTitle = () => {
                 const title = viewer.ui?.info?.querySelector('.info-panel__title');
-                if (title) title.textContent = 'Southern Ocean Exploration';
+                if (!title || title.querySelector('.soe-title__logo')) return;
+                title.textContent = '';
+                title.classList.add('soe-title');
+                const logo = document.createElement('img');
+                logo.className = 'soe-title__logo';
+                logo.src = '/assets/soe-logo.webp';
+                logo.alt = '';
+                logo.width = 56;
+                logo.height = 42;
+                const name = document.createElement('span');
+                name.textContent = 'Southern Ocean Exploration';
+                title.append(logo, name);
             };
             setInfoTitle();
+
+            // No dive mode: the Survey/Dive switch is hidden (CSS above) and
+            // the Z key and VR buttons can no longer turn it on. The dive
+            // system stays loaded because it also provides the survey lighting.
+            const keepSurveyMode = () => {
+                const dive = viewer.diveSystem;
+                if (!dive || dive.surveyOnly) return !!dive;
+                const setDiveMode = dive.setDiveMode.bind(dive);
+                dive.setDiveMode = () => setDiveMode(false);
+                dive.surveyOnly = true;
+                setDiveMode(false);
+                return true;
+            };
+            if (!keepSurveyMode()) {
+                const wait = setInterval(() => { if (keepSurveyMode()) clearInterval(wait); }, 100);
+            }
 
             // BelowJS also sets the tab to "BelowJS – <model>" on every load.
             const titleEl = document.querySelector('title');
@@ -176,6 +227,12 @@
             fitStartViewToScreen(viewer);
             // Water, seabed and marine snow. ?water=off shows the bare scan.
             if (params.get('water') !== 'off') addUnderwater(viewer);
+            // Points of interest, depth gauge and then and now, for wrecks
+            // with a file in /assets/wrecks/. Added after the water so the
+            // model is already level when it measures the sand.
+            addWreckExtras(viewer);
+            // Exit VR button on the right wrist.
+            addVrExit(viewer);
             addBackLink();
             showXrPrompt(viewer, params.get('mode'));
 

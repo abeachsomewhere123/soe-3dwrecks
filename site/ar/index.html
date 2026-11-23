@@ -12,13 +12,14 @@
     <script type="importmap">
     {
         "imports": {
-            "three": "https://cdn.jsdelivr.net/npm/three@0.179.1/+esm",
-            "belowjs": "https://cdn.jsdelivr.net/npm/belowjs@1.8.0/dist/belowjs.js"
+            "three": "/vendor/three/0.179.1/three.module.js",
+            "belowjs": "/vendor/belowjs/1.8.0-dev.5bf0695/belowjs.js"
         }
     }
     </script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/belowjs@1.8.0/dist/belowjs.css">
+    <link rel="stylesheet" href="/vendor/belowjs/1.8.0-dev.5bf0695/belowjs.css">
     <link rel="stylesheet" href="/assets/viewer.css">
+    <link rel="stylesheet" href="/assets/wreck-extras.css?v=cac290bd">
 
     <style>
         html, body {
@@ -97,6 +98,8 @@
         import { fitStartViewToScreen } from '/assets/fit-view.js';
         import { placeArModel } from '/assets/xr-start.js';
         import { addArTablePlacement } from '/assets/ar-table.js';
+        import { addWreckExtras } from '/assets/wreck-extras.js?v=babbf198';
+        import { addVrExit } from '/assets/vr-exit.js';
 
         const statusEl = document.getElementById('status');
 
@@ -145,6 +148,8 @@
             }
 
             const viewer = new ModelViewer(document.getElementById('viewer'), {
+                // Draco and KTX2 decoders and VR controller models: self-hosted (see /vendor/README.md).
+                assetBasePath: '/vendor/below-assets/',
                 enableVR: false,
                 enableAR: true,
                 enableMeasurement: false, // conflicts with AR gestures
@@ -191,6 +196,12 @@
 
             placeArModel(viewer);
             addArTablePlacement(viewer);
+            // The reconstruction (then and now; click a thumbstick in AR) and
+            // the markers, for wrecks with a file in /assets/wrecks/. Added
+            // after the table placement, which levels the model first.
+            addWreckExtras(viewer);
+            // Exit button on the right wrist.
+            addVrExit(viewer);
             fitStartViewToScreen(viewer);
             addBackLink();
             showXrPrompt(viewer, params.get('mode'));

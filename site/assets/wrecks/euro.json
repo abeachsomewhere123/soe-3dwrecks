@@ -6,7 +6,7 @@
   "pois": [],
   "ghost": {
     "label": "Reconstruction, indicative",
-    "note": "A representation, not a confirmed likeness. The hull is sized from her registered dimensions (130 x 22.5 x 12.2 ft) and fitted to the scan: she lies about 36 degrees to port, easing to about 30 degrees at the bow. The deck layout, funnel, masts, boat and towing gear follow a State Library of Western Australia photograph we believe shows the Euro, though that isn't confirmed; detail the photo doesn't show follows tugs of the period. Colours can't be read from a black and white photo: the funnel's dull red with a black top is a guess.",
+    "note": "A representation. The hull is sized from her registered dimensions (130 x 22.5 x 12.2 ft) and fitted to the scan: she lies about 36 degrees to port, easing to about 30 degrees at the bow. The deck layout follows three photographs of the Euro (two by Allan C. Green in the State Library of Victoria, one from the Tug Talk forum), measured along the hull; the funnel they show stands over the boiler in the scan. Colours can't be read from black and white photographs: they show a light funnel with a black top, and a black hull with a white line.",
     "listToPort": 36.0,
     "keel": [
       -127.2396,
@@ -42,98 +42,84 @@
       "bowFullness": 1.8
     },
     "casing": {
-      "from": -0.9,
-      "to": 15.7,
-      "width": 4.2,
-      "height": 2.1,
+      "from": -4.6,
+      "to": 7.2,
+      "width": 4.8,
+      "height": 1.8,
       "portholeSpacing": 0,
       "boat": {
-        "at": 1.75,
-        "length": 4.5,
+        "at": -2.8,
+        "length": 4.2,
         "beam": 1.5,
-        "z": 0.95,
-        "davits": true
+        "z": 0,
+        "davits": "both",
+        "davitHeight": 3.0,
+        "cover": true
       },
       "openings": [
         {
-          "at": 1.5,
-          "type": "window"
-        },
-        {
-          "at": 6.85,
-          "type": "window"
-        },
-        {
-          "at": 11.6,
+          "at": 5.3,
           "type": "door"
+        },
+        {
+          "at": 3.0,
+          "type": "window"
+        },
+        {
+          "at": -0.6,
+          "type": "window"
         }
-      ],
-      "skylight": {
-        "from": 7.3,
-        "to": 8.8,
-        "width": 1.6
-      }
+      ]
     },
     "wheelhouse": {
-      "from": 9.5,
-      "to": 12.4,
-      "width": 3.2,
-      "height": 2.0
+      "from": 3.4,
+      "to": 6.4,
+      "width": 2.8,
+      "height": 1.95,
+      "awning": {
+        "from": 1.7,
+        "to": 7.4,
+        "width": 4.0
+      }
     },
     "funnel": {
-      "at": 5.3,
-      "radius": 0.95,
-      "height": 11.0,
+      "at": 0.4,
+      "radius": 1.05,
+      "height": 11.8,
       "rake": 3,
       "guys": [
-        -1.7,
-        1.7
+        -2.2,
+        0.9
       ],
       "guyBand": 0.78,
       "whistleAt": 0.84
     },
     "masts": [
       {
-        "at": 12.9,
-        "height": 15.5,
-        "rake": 5,
+        "at": 12.3,
+        "height": 13.6,
+        "rake": 3,
         "rigging": {
-          "hounds": 0.68,
+          "hounds": 0.72,
           "shrouds": [
-            0.9,
-            1.5,
-            2.1
-          ],
-          "ratlines": true,
-          "backstays": [
-            5.0
+            -0.8,
+            0.6,
+            1.6
           ],
           "forestays": [
-            "stem",
-            "hounds"
+            "stem"
           ],
-          "light": 0.55
-        }
-      },
-      {
-        "at": -0.4,
-        "height": 15.5,
-        "rake": 5,
-        "rigging": {
-          "hounds": 0.7,
-          "shrouds": [
-            1.0,
-            1.7
-          ]
+          "light": 0.76
         }
       }
     ],
     "towingArches": [
-      -9.3,
-      -3.7
+      -12.6,
+      -8.6,
+      -6.3
     ],
     "bitts": [
-      19.6
+      20.9
     ],
     "twist": {
       "at": [
@@ -158,21 +144,21 @@
       ]
     },
     "afterCasing": {
-      "from": -13.4,
-      "to": -7.5,
-      "width": 3.0,
-      "height": 1.0,
+      "from": -12.4,
+      "to": -10.4,
+      "width": 2.2,
+      "height": 0.8,
       "skylight": {
-        "from": -12.6,
-        "to": -8.4,
-        "width": 1.6
+        "from": -12.1,
+        "to": -10.7,
+        "width": 1.4
       }
     },
     "towingHook": {
-      "at": -0.95,
+      "at": -4.75,
       "height": 1.45
     },
-    "towingArchHeight": 1.75,
+    "towingArchHeight": 1.85,
     "quarterBitts": [
       -15.9
     ],
@@ -181,46 +167,109 @@
       "radius": 1.0
     },
     "sliderLabel": "Reconstruction (indicative)",
-    "photoSource": "State Library of Western Australia, photograph believed to show the steam tug Euro (not confirmed)",
+    "photoSource": "Photographs of the Euro: Allan C. Green, State Library of Victoria (two), and the Tug Talk forum, via Clydeships (Caledonian Maritime Research Trust)",
     "colours": {
-      "deckhouse": "#4a4339",
-      "funnel": "#8a4232",
-      "funnelTop": 0.22,
-      "masts": "#a8946f"
+      "deckhouse": "#3f3b35",
+      "funnel": "#ddd5c2",
+      "funnelTop": 0.25,
+      "masts": "#8f826b",
+      "rubbing": "#e6e1d4",
+      "canvas": "#8a857a"
     },
     "vents": [
       {
-        "at": 1.6,
-        "z": -0.95,
-        "height": 1.8
+        "at": 2.2,
+        "z": 1.4,
+        "height": 3.3,
+        "size": 1.5
       },
       {
-        "at": 3.3,
-        "z": -0.95,
-        "height": 1.6
+        "at": 2.2,
+        "z": -1.4,
+        "height": 3.3,
+        "size": 1.5
+      },
+      {
+        "at": 10.9,
+        "z": -0.7,
+        "on": "house",
+        "height": 0.8
+      },
+      {
+        "at": 11.5,
+        "z": 0.7,
+        "on": "house",
+        "height": 0.8
+      },
+      {
+        "at": 16.0,
+        "z": -0.55,
+        "on": "deck",
+        "height": 1.7
+      },
+      {
+        "at": 16.6,
+        "z": 0.55,
+        "on": "deck",
+        "height": 1.7
       }
     ],
     "lifebuoys": [
       {
-        "at": 9.1,
-        "on": "casing"
+        "at": 3.4,
+        "on": "bridgeHouse"
       },
       {
-        "at": -11.1,
-        "on": "afterCasing"
+        "at": 6.6,
+        "on": "bridgeHouse"
       }
     ],
     "fenders": {
-      "bow": true,
+      "bow": {
+        "radius": 0.42,
+        "length": 5.2,
+        "drop": 0.55,
+        "stem": 0.75
+      },
       "hanging": [
-        16.6,
-        18.4
+        -11.5,
+        -7.4,
+        -3.2,
+        0.1,
+        5.9,
+        10.0,
+        14.8
       ]
     },
     "rigging": {
-      "triatic": true,
-      "mainToFunnel": 0.45
+      "mainToFunnel": 0.97
     },
-    "sidelights": true
+    "sidelights": true,
+    "bridgeHouse": {
+      "from": 1.5,
+      "to": 7.2,
+      "width": 4.4,
+      "height": 1.9,
+      "ladders": true
+    },
+    "deckhouses": [
+      {
+        "from": 10.4,
+        "to": 13.7,
+        "width": 2.8,
+        "height": 2.0,
+        "portholes": [
+          11.1,
+          13.1
+        ]
+      }
+    ],
+    "windlass": {
+      "at": 18.2
+    },
+    "name": {
+      "at": 15.9,
+      "height": 0.35
+    }
   }
 }
