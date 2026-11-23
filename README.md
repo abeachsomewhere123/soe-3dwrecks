@@ -17,11 +17,9 @@
 
 `site/assets/underwater.js` adds blue water that fades with distance, a sandy seabed out to the horizon to the browser/VR viewer, plus drifting marine snow in VR. It finds the seabed height from the edge of each scan, so new models need no settings. Colours, haze and snow are constants at the top of the file. Where the edge of a scan is all sand but the sand inside dips lower (scour round the wreck, as on the Batman), the seabed is cut to the scan's outline and a second, lower seabed fills the cut just under the scanned sand, so the scan's own sand isn't buried. Where the wreck runs to the edge of the scan (the Euro), there is one seabed at the edge's height. Add `&water=off` to a `/view/` link to see the bare scan.
 
-## Seabed passthrough (test site only)
+## Seabed passthrough (off)
 
-On `dev`, `/view/` uses a BelowJS build of the `claude/upbeat-volta-1lk76n` branch of abeachsomewhere123/belowjs (served from `site/vendor/belowjs/`), with `vr: { passthroughOnSeabed: true }`. On a passthrough headset (Quest 3), coming down onto the sand in VR fades the water out so the room shows, with the wreck around you at full scale; rising off the sand brings the water back. `underwater.js` hides the extended seabed and marine snow while you stand on the sand. `main` still uses `belowjs@1.8.0` and three.js from the jsDelivr CDN.
-
-Before merging `dev` into `main`, ideally publish a BelowJS release with this feature and host that in `site/vendor/belowjs/<version>/` in place of the branch build (see `site/vendor/README.md`).
+The BelowJS build in `site/vendor/belowjs/` can show the real room when you stand on the sand in VR on a passthrough headset (`vr: { passthroughOnSeabed: true, passthroughEyeHeight: 3 }` in the viewer config). It is switched off on `/view/` and `/then-now/`: VR stays underwater throughout. Add that line back to `viewerConfig` to turn it on again.
 
 ## Caching of site scripts
 

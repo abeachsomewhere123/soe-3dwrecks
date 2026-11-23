@@ -287,10 +287,9 @@
                 autoLoadFirst: false,
                 assetBasePath: '/vendor/below-assets/',
                 viewerConfig: {
-                    scene: { background: '#001122' },
-                    // As in the main viewer: standing on the sand shows the
-                    // room on passthrough headsets, eyes 3 m above the sand.
-                    vr: { passthroughOnSeabed: true, passthroughEyeHeight: 3 }
+                    scene: { background: '#001122' }
+                    // VR stays underwater throughout: seabed passthrough
+                    // (vr.passthroughOnSeabed) is left off.
                 }
             });
             document.getElementById('tn-name').textContent = models[key].name || key;
