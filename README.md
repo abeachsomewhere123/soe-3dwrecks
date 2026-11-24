@@ -21,6 +21,10 @@
 
 The BelowJS build in `site/vendor/belowjs/` can show the real room when you stand on the sand in VR on a passthrough headset (`vr: { passthroughOnSeabed: true, passthroughEyeHeight: 3 }` in the viewer config). It is switched off on `/view/` and `/then-now/`: VR stays underwater throughout. Add that line back to `viewerConfig` to turn it on again.
 
+## Easter egg: the surface (VR)
+
+In VR on `/view/` and `/then-now/`, swim all the way up and you break the surface: open water, sky and a dive boat on its shot line above the wreck. It comes from BelowJS's `vr.surfaceDepth` (in the build in `site/vendor/belowjs/`); `wreck-extras.js` passes each wreck's `seabedDepth` from its data file with `setSurfaceDepth()`, so wrecks without a data file have no surface. From below, the surface shows as a bright ceiling with Snell's window once you're within the visibility. Not in AR.
+
 ## Caching of site scripts
 
 Cloudflare tells browsers to keep files under `/assets/` for 4 hours. Pages load `wreck-extras.js` (and `wreck-extras.css`) with `?v=` and the first 8 characters of the file's SHA-256, so a changed file is fetched at once. After editing either file, update the `?v=` in `then-now/`, `view/` and `ar/`: `sha256sum site/assets/wreck-extras.js | cut -c1-8`. The wreck data files (`assets/wrecks/*.json`) are fetched with `cache: 'no-cache'`, so they always revalidate.

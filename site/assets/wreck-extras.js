@@ -104,6 +104,9 @@ export function addWreckExtras(viewer, options = {}) {
         loading = null;
         if (!data) return;
         state = build(model, data);
+        // The VR Easter egg: swim all the way up and the surface and a dive
+        // boat are there (BelowJS vr.surfaceDepth; older builds skip it).
+        viewer.belowViewer?.setSurfaceDepth?.(Number.isFinite(data.seabedDepth) ? data.seabedDepth : null);
         ui.show(state, {
             onPoi: (poi) => openDesktop(poi),
             onBlend: (value) => { blendTarget = value; blend = value; },
