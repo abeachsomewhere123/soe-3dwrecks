@@ -11558,16 +11558,12 @@ function xh() {
   for (const m of [-1, 1]) t(2.4, 0.7, 0.05, 1.2, 2.35, m * 1.23, "#1a2a33");
   t(5.6, 0.12, 2.9, -0.3, 2.95, 0, "#f4f4f0");
   for (const m of [-1, 1]) for (const C of [-2.9, -1.3]) s([C, 1, m * 1.35], [C, 2.9, m * 1.35], 0.04, "#c8ccd0");
-  e(new g.SphereGeometry(0.32, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.55, 1).translate(1.6, 3.01, 0), "#f6f6f6"), s([0.6, 3, 0], [0.6, 5, 0], 0.035, "#c8ccd0");
-  {
-    e(new g.PlaneGeometry(0.6 / 2, 0.42).translate(0.62 + 0.6 / 4, 4.75, 0), "#ffffff", { lit: !1 });
-    const b = new g.Shape();
-    b.moveTo(0, -0.42 / 2), b.lineTo(0.6 / 2, -0.42 / 2), b.lineTo(0.6 / 2 - 0.12, 0), b.lineTo(0.6 / 2, 0.42 / 2), b.lineTo(0, 0.42 / 2), e(new g.ShapeGeometry(b).translate(0.62 + 0.6 / 2, 4.75, 1e-3), "#1f4fb3", { lit: !1 });
-  }
-  {
-    e(new g.PlaneGeometry(0.5, 0.36).translate(0.62 + 0.5 / 2, 4.2, 0), "#d41f1f", { lit: !1 });
-    const b = new g.PlaneGeometry(Math.hypot(0.5, 0.36), 0.08).rotateZ(-Math.atan2(0.36, 0.5)).translate(0.62 + 0.5 / 2, 4.2, 2e-3);
-    e(b, "#ffffff", { lit: !1 });
+  e(new g.SphereGeometry(0.32, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.55, 1).translate(1.6, 3.01, 0), "#f6f6f6"), s([0.6, 3, 0], [0.6, 5.3, 0], 0.035, "#c8ccd0");
+  for (const w of [1, -1]) {
+    const I = w * 4e-3, B = new g.PlaneGeometry(1 / 2, 0.75).translate(0.64 + 1 / 4, 4.85, I), S = new g.Shape();
+    S.moveTo(0, -0.75 / 2), S.lineTo(1 / 2, -0.75 / 2), S.lineTo(1 / 2 - 0.25, 0), S.lineTo(1 / 2, 0.75 / 2), S.lineTo(0, 0.75 / 2), S.closePath();
+    const v = new g.ShapeGeometry(S).translate(0.64 + 1 / 2, 4.85, I);
+    w < 0 && (B.scale(1, 1, -1), v.scale(1, 1, -1)), e(B, "#ffffff", { lit: !1 }), e(v, "#1546a8", { lit: !1 });
   }
   for (const m of [-1, 1]) {
     for (let C = 0; C < 6; C++) {
