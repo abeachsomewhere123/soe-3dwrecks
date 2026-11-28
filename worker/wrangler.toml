@@ -24,3 +24,19 @@ enabled = true
 [observability.logs]
 enabled = true
 invocation_logs = true
+
+# Dev Worker for the dev site (https://dev.soe-3dwrecks.pages.dev): the same
+# models plus AR copies from the soeglb-ar bucket. Deploy with
+# `npx wrangler deploy --env dev`; it runs as shipwreck-models-dev on workers.dev.
+[env.dev]
+workers_dev = true
+preview_urls = false
+routes = []
+
+[[env.dev.r2_buckets]]
+binding = "MODELS"
+bucket_name = "soeglb"
+
+[[env.dev.r2_buckets]]
+binding = "AR_MODELS"
+bucket_name = "soeglb-ar"

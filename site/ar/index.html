@@ -90,7 +90,14 @@
         //
         // Fallback if the custom domain ever stops working:
         // https://shipwreck-models.abeachsomewhere.workers.dev
-        const MODELS_API = 'https://models.southernoceanexploration.com';
+        //
+        // Off the live site (the dev site and local testing) the list comes
+        // from the dev Worker, which adds lighter AR copies of the models
+        // (arUrl, from the soeglb-ar bucket). See worker/wrangler.toml.
+        const LIVE_HOST = '3dwrecks.southernoceanexploration.com';
+        const MODELS_API = location.hostname === LIVE_HOST
+            ? 'https://models.southernoceanexploration.com'
+            : 'https://shipwreck-models-dev.abeachsomewhere.workers.dev';
         // ────────────────────────────────────────────────────────────────
 
         import { ModelViewer } from 'belowjs';
@@ -138,6 +145,16 @@
 
             const models = data.models || {};
             const keys = Object.keys(models);
+
+            // Use the lighter AR copy of a model when there is one: fewer
+            // triangles and smaller textures, so it loads quickly and runs
+            // smoothly at tabletop size. Models without one load as usual.
+            for (const m of Object.values(models)) {
+                if (m.arUrl) {
+                    m.url = m.arUrl;
+                    if (m.arSizeMb) m.sizeMb = m.arSizeMb;
+                }
+            }
 
             if (keys.length === 0) {
                 showStatus(

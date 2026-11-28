@@ -13,6 +13,11 @@
  * To set a credit, a starting camera angle, or turn measuring off, upload an
  * optional file called metadata.json to the same bucket. If it isn't there,
  * everything still works.
+ *
+ * Optional second binding, AR_MODELS: a bucket of lighter copies for AR, each
+ * with the same file name as its model. When one exists, the model's entry
+ * gains arUrl (served from /ar/...) and arSizeMb. Without the binding the list
+ * is exactly as before.
  */
 
 // When true, the Worker serves the .glb files itself from /f/<filename>.
@@ -90,12 +95,17 @@ export default {
     // The model list links to /f/v/<version>/<file>. The version changes
     // whenever a file is replaced, so browsers fetch the new file instead of
     // reusing a cached copy. Plain /f/<file> links still work.
-    if (SERVE_FILES_FROM_WORKER && url.pathname.startsWith('/f/')) {
-      const versioned = url.pathname.match(/^\/f\/v\/[^/]+\/(.+)$/);
-      const key = decodeURIComponent(versioned ? versioned[1] : url.pathname.slice(3));
+    // AR copies (lighter files for tabletop AR) are served the same way from
+    // /ar/, out of the optional AR_MODELS bucket.
+    const arPath = env.AR_MODELS && url.pathname.startsWith('/ar/');
+    if (SERVE_FILES_FROM_WORKER && (url.pathname.startsWith('/f/') || arPath)) {
+      const bucket = arPath ? env.AR_MODELS : env.MODELS;
+      const rest = url.pathname.slice(arPath ? 4 : 3);
+      const versioned = rest.match(/^v\/[^/]+\/(.+)$/);
+      const key = decodeURIComponent(versioned ? versioned[1] : rest);
       let obj;
       try {
-        obj = await env.MODELS.get(key, { onlyIf: request.headers });
+        obj = await bucket.get(key, { onlyIf: request.headers });
       } catch (err) {
         return new Response('Error reading ' + key + ': ' + err.message, {
           status: 502,
@@ -133,9 +143,13 @@ export default {
       ? `${url.origin}/f`
       : (env.PUBLIC_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
 
-    let files, meta;
+    let files, meta, arFiles;
     try {
-      [files, meta] = await Promise.all([listGlbFiles(env.MODELS), loadMetadata(env.MODELS)]);
+      [files, meta, arFiles] = await Promise.all([
+        listGlbFiles(env.MODELS),
+        loadMetadata(env.MODELS),
+        env.AR_MODELS ? listGlbFiles(env.AR_MODELS) : []
+      ]);
     } catch (err) {
       return new Response(JSON.stringify({ error: 'Could not read the bucket: ' + err.message }), {
         status: 502,
@@ -143,11 +157,19 @@ export default {
       });
     }
 
+    // An AR copy has the same file name as its model ("Euro.glb" in both buckets).
+    const arByKey = new Map(arFiles.map((obj) => [obj.key, obj]));
+
     const entries = files.map((obj) => {
       const filename = obj.key.split('/').pop();
       const displayBase = filename.replace(/\.glb$/i, '');
       const m = meta[obj.key] || meta[filename] || meta[displayBase] || {};
+      const ar = arByKey.get(obj.key);
       return {
+        arUrl: ar && SERVE_FILES_FROM_WORKER
+          ? `${url.origin}/ar/v/${encodeURIComponent(ar.etag.slice(0, 12))}/${encodePath(ar.key)}`
+          : null,
+        arSizeMb: ar ? Math.round((ar.size / (1024 * 1024)) * 10) / 10 : null,
         slugBase: displayBase,
         url: SERVE_FILES_FROM_WORKER
           ? `${base}/v/${encodeURIComponent(obj.etag.slice(0, 12))}/${encodePath(obj.key)}`
@@ -177,6 +199,10 @@ export default {
         measurable: entry.measurable,
         sizeMb: entry.sizeMb
       };
+      if (entry.arUrl) {
+        model.arUrl = entry.arUrl;
+        model.arSizeMb = entry.arSizeMb;
+      }
       if (entry.credit) model.credit = entry.credit;
       if (entry.initialPositions) model.initialPositions = entry.initialPositions;
       models[key] = model;

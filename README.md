@@ -78,11 +78,40 @@ For a card picture, add `site/thumbnails/<file>.jpg` (e.g. `Euro.jpg`, 800×500)
 
 Replacing a file under the same name reaches returning visitors within a day.
 
+## AR copies of the models (dev site only)
+
+The AR page loads a lighter copy of each model when one exists, because the full models are too heavy for tabletop AR on a headset or phone. A wreck at table size shows no visible difference.
+
+- **Where:** the `soeglb-ar` bucket, under the same file name as the model (`Euro.glb`, `Batman.glb`). A model without a copy loads its full file.
+- **How they're served:** the dev Worker, `shipwreck-models-dev` (https://shipwreck-models-dev.abeachsomewhere.workers.dev), lists the same models as the live Worker and adds `arUrl` and `arSizeMb` for each copy. `/ar/` uses it on every host except the live site, so the live site is unchanged.
+- **Current copies:**
+
+| Model | Full | AR copy |
+| --- | --- | --- |
+| Euro | 34 MB, 829k triangles, 4096 px textures | 6.5 MB, 249k triangles, 2048 px textures |
+| Batman | 41 MB, 1.07M triangles, 8192 px texture | 4.9 MB, 334k triangles, 4096 px texture |
+
+- **Making one** (glTF Transform 4.5 and KTX-Software 4.4 on the path):
+
+```sh
+gltf-transform ktxdecompress Model.glb a.glb
+gltf-transform resize a.glb b.glb --width 2048 --height 2048   # 4096 for a single-atlas model
+gltf-transform weld b.glb c.glb
+gltf-transform simplify c.glb d.glb --ratio 0.3 --error 0.0005
+gltf-transform etc1s d.glb e.glb --quality 230
+gltf-transform draco e.glb Model-AR.glb
+```
+
+Check that the copy's bounding box matches the full model's to within a few millimetres: the viewer centres the model on it, and the wreck extras (markers, reconstruction) are placed in the file's own coordinates. Use Draco rather than Meshopt, which quantises positions behind a node transform.
+
+**To take this live:** add the `AR_MODELS` binding to the main Worker (the `[env.dev]` block in `wrangler.toml` shows it), deploy, then merge `dev` into `main`. Until then the live AR page keeps loading the full files.
+
 ## Deploying the Worker
 
 ```sh
 cd worker
-npx wrangler deploy
+npx wrangler deploy            # live: shipwreck-models
+npx wrangler deploy --env dev  # dev: shipwreck-models-dev, with the AR bucket
 ```
 
 `wrangler.toml` owns the Worker's bindings and domains. Change them there, not in the dashboard, or the next deploy will undo the dashboard change.
